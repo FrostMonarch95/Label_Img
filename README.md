@@ -16,6 +16,7 @@ https://pypi.org/project/GDAL/#files
 https://pypi.org/project/scikit-image/#files
 
 ### How to run?
+Run on your console/terminal:
 
 python Main.py
 
