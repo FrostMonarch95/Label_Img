@@ -4,6 +4,7 @@ from functools import partial
 from PyQt5 import QtWidgets, QtGui, QtCore
 import os
 import cv2
+
 from skimage import io as iio
 import numpy as np
 
@@ -98,6 +99,7 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         self.poly_scene=my_scene    #表明多边形正放在哪个scene上面.
         self.del_instruction=Instructions.Hand_instruction #默认不进入删除模式
         self.my_color= PolygonAnnotation.cur_class  #作为color_table的下标 用于指示画本个多边形的颜色
+        self.dock_idx=-1    #表示这是dock第几行 默认从零开始 主要用于在dock中 删除或者修改这行信息
         self.setZValue(10)
         self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
         self.setAcceptHoverEvents(True)
@@ -257,10 +259,17 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
             for it in self.m_items:
                 self.poly_scene.removeItem(it)
             self.poly_scene.removeItem(self)
+            self.poly_scene.parent.dock1_listwidget.takeItem(self.dock_idx)
+            for idx,poly in enumerate(Allpoly.all_poly):
+                if poly.dock_idx>self.dock_idx:
+                    print(poly)
+
+                    poly.dock_idx-=1
             for idx,poly in enumerate(Allpoly.all_poly):
                 if poly == self:
                     del Allpoly.all_poly[idx]
                     break
+
 
         super(PolygonAnnotation, self).mousePressEvent(event)
 
@@ -271,11 +280,12 @@ class Instructions():
     Contour_Instruction=3  #while users wants to use contour to display contours
     Delete_Instruction = 4  #while deleting a polygon we need to use this
     Hand_instruction=5 #while no delete a polygon we need to use this and maybe in other cases
-                        # we need to use this instruction to clear
+    Polygon_Finish=6    #while polygon is drawn we need to set this instruction
+
 
 
 class Allpoly():
-    all_poly=[]
+    all_poly=[] #注意这里的下标耦合了dock的下标，也就是这里的元素的下标要和dock的一致
 class AnnotationScene(QtWidgets.QGraphicsScene):
     approx_poly_dp_mis=0.01    #表示我们在用flood fill或者深度学习时生成多边形时允许的误差
     def __init__(self, parent=None):
@@ -284,6 +294,7 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
 
         self.image_item.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
         self.addItem(self.image_item)
+        self.parent=parent  #scene的父亲，一般默认是主界面QMainWindow
         self.cv_nir_img=None    #once we load a image, we need to add a [nir r g] image here
         self.cv_img=None    #once we load a image, we need to add a [r g b] image .
         self.file_name=""   #once we load a new file, we need to change its filename.
@@ -367,7 +378,7 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
             self.polygon_item.my_color=target_class-1
             print("setting target class father %d"%(target_class))
             self.polygon_item.MySetFatherSonPolygon(my_data_exchange)
-            self.setCurrentInstruction(Instructions.Hand_instruction)
+            self.setCurrentInstruction(Instructions.Polygon_Finish)
 
 
 
@@ -403,12 +414,22 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
                 it.del_instruction=Instructions.Delete_Instruction
             return
         elif instruction== Instructions.Polygon_Instruction:
+
+
             self.polygon_item = PolygonAnnotation(self)
+
+
             print("all poly append")
             print(self.polygon_item)
+
             Allpoly.all_poly.append(self.polygon_item)
             self.addItem(self.polygon_item)
             print("add successfully")
+        elif instruction==Instructions.Polygon_Finish:
+            dock1_idx=self.parent.dock1_listwidget.count()
+            self.polygon_item.dock_idx=dock1_idx
+            tmpstr=self.parent.classes_name_color_pair[self.polygon_item.my_color][0]
+            self.parent.dock1_listwidget.addItem(tmpstr)
         else:pass
     #ref:https://www.cnblogs.com/anningwang/p/7581545.html
     #input: cnt .where cnt from cv2.findcontours(),the first output contour
@@ -492,11 +513,7 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
                 lis.append(QtCore.QPointF(x,y))
             self.polygon_item.MySetPolygon(lis)
             print("add point part done")
-            self.setCurrentInstruction(Instructions.Hand_instruction)
-
-
-
-
+            self.setCurrentInstruction(Instructions.Polygon_Finish)
 
         else:pass
         super(AnnotationScene, self).mousePressEvent(event)
@@ -543,7 +560,11 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         self.folder=""   #表明当前正在访问的目录 例如     "D:/Work"
         self.image_last_dir=[]  #表明当前正在访问的图片 例如： [Pet.png, Lake.png, ...]
         self.image_poi=0    #表明当前正在访问目录的哪一个图片
-
+        self.dock1=QtWidgets.QDockWidget(u"已标注多边形",self)
+        self.dock1_listwidget=QtWidgets.QListWidget()   #代表dock的list
+        self.dock1.setWidget(self.dock1_listwidget) #每次增删多边形都要对这个进行操作.
+        self.dock1_listwidget.itemClicked.connect(self.brush_item)
+        self.dock1_ls_poly=None #重新渲染
         self.m_view = AnnotationView()
         self.m_scene = AnnotationScene(self)
 
@@ -552,14 +573,28 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(self.m_view)
 
+
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea,self.dock1)
         self.read_classes_and_colors()
         self.create_menus()
 
 
-        QtWidgets.QShortcut(QtCore.Qt.Key_Escape, self, activated=partial(self.m_scene.setCurrentInstruction, Instructions.Hand_instruction))
+        QtWidgets.QShortcut(QtCore.Qt.Key_Escape, self, activated=partial(self.m_scene.setCurrentInstruction, Instructions.Polygon_Finish))
         QtWidgets.QShortcut(QtCore.Qt.Key_Left, self, activated=partial (self.next_image,-1))
         QtWidgets.QShortcut(QtCore.Qt.Key_Right, self, activated=partial(self.next_image,1))
         QtWidgets.QShortcut(QtCore.Qt.Key_C, self, activated=self.m_scene.Flip_show)
+    def brush_item(self):
+        if self.dock1_ls_poly is not None and self.dock1_ls_poly in Allpoly.all_poly:
+            self.dock1_ls_poly.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
+
+        idx=self.dock1_listwidget.currentRow()
+        col=PolygonAnnotation.color_table[Allpoly.all_poly[idx].my_color][1]
+
+        Allpoly.all_poly[idx].setBrush(QtGui.QColor(col[0], col[1], col[2], col[3]))
+        self.dock1_ls_poly= Allpoly.all_poly[idx]
+
+
+
     def next_image(self,dir):
         if dir == 1:
             if self.image_poi == len(self.image_list_all_dir)-1:return
@@ -576,6 +611,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         with open("classes.txt","r") as file:
             count=0
             for line in file:
+                line=line[:-1]
                 if  not count:self.classes_name_color_pair=[]
                 self.classes_name_color_pair.append([line])
                 count+=1
@@ -627,6 +663,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         save_img_memo_ts.triggered.connect(self.polyApproximate)
 
         ccls=self.menuBar().addMenu("Current Class")
+
         for idx,i in enumerate(self.classes_name_color_pair):
             ccls_action=ccls.addAction(i[0])
             ccls_action.triggered.connect(partial(self.handle_cur_class,idx))
@@ -786,7 +823,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
             filename, _ = QtWidgets.QFileDialog.getOpenFileName(self,
                 "Open Image",
                 QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.PicturesLocation), #QtCore.QDir.currentPath(),
-                "Image Files (*.png *.jpg *.bmp)")
+                "Image Files (*.png *.jpg *.bmp *.tif *.tiff)")
             self.image_list_all_dir = []
             image_names=[]
             ls=filename.split('/')
@@ -809,6 +846,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                 for grip in poly.m_items:
                     self.m_scene.removeItem(grip)
             del Allpoly.all_poly[:]
+            self.dock1_listwidget.clear()
             print("loading ")
 
             self.m_scene.file_name=filename
@@ -871,10 +909,26 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                     self.m_scene.polygon_item.MySetFatherSonPolygon(exterior)
                 else:
                     self.m_scene.polygon_item.my_color=int(ls[1])
-                    self.m_scene.setCurrentInstruction(Instructions.No_Instruction)
+                    self.m_scene.setCurrentInstruction(Instructions.Polygon_Finish)
+    def stretch_n(self,bands, lower_percent=2, higher_percent=98):
+        # print(bands.dtype)
+        # 一定要使用float32类型，原因有两个：1、Keras不支持float64运算；2、float32运算要好于uint16
+        out = np.zeros_like(bands).astype(np.float32)
+        # print(out.dtype)
+        for i in range(bands.shape[2]):
+            # 这里直接拉伸到[0,1]之间，不需要先拉伸到[0,255]后面再转
+            a = 0
+            b = 1
+            # 计算百分位数（从小到大排序之后第 percent% 的数）
+            c = np.percentile(bands[:, :, i], lower_percent)
+            d = np.percentile(bands[:, :, i], higher_percent)
+            t = a + (bands[:, :, i] - c) * (b - a) / (d - c)
+            t[t < a] = a
+            t[t > b] = b
+            out[:, :, i] = t
 
+        return out
 
-    '''
     # 多波段图像(遥感图像)提取每个波段信息转换成数组（波段数>=4 或者 波段数<=3）
     # 一般的方法如：opencv，PIL，skimage 最多只能读取3个波段
     # path 图像的路径
@@ -882,7 +936,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
     # 假若读到4通道图，我们规定原始的四通道tif必须存储为 RGB NIR， 所以返回的也是这个顺序
     # 若通道大于4，那么我们只返回4通道，舍弃剩余的通道
     # 若像素值不在0-255 范围内，本函数会进行线性拉伸到0-255.
-    '''
+
     def Multiband2Array(self,path):
 
         src_ds = gdal.Open(path)
@@ -910,7 +964,9 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                 # 将每个波段的数组很并到一个3维数组中
                 data=np.append(data,dataraster.reshape((ycount,xcount,1)),axis=2)
         if data.shape[2]>4:data=data[:,:,0:4]
-        if np.max(data)>255:data=(data-np.min(data))/(np.max(data)-np.min(data)) * 255
+        if np.max(data)>255:
+            data=np.uint8(self.stretch_n(np.float32(data))*255)
+            #cv2.imwrite("ts.tiff",data)
         return np.uint8(data)
 
 if __name__ == '__main__':
