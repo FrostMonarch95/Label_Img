@@ -15,6 +15,10 @@ https://pypi.org/project/GDAL/#files
 (4)scikit-image
 https://pypi.org/project/scikit-image/#files
 
+(5)qimage2ndarray
+https://pypi.org/project/qimage2ndarray/
+
+
 ### How to run?
 Run on your console/terminal:
 
