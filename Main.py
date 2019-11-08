@@ -4,7 +4,7 @@ from functools import partial
 from PyQt5 import QtWidgets, QtGui, QtCore
 import os
 import cv2
-
+from qimage2ndarray import rgb_view as qimg2array
 from skimage import io as iio
 import numpy as np
 
@@ -128,7 +128,8 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
 
         col=PolygonAnnotation.color_table[self.my_color][1]
         self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
-        self.setBrush(QtGui.QColor(col[0], col[1], col[2],col[1]))
+        self.setBrush(QtGui.QColor(col[0], col[1], col[2], col[3]))
+
 
     def number_of_points(self):
         return len(self.m_items)
@@ -250,7 +251,7 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         super(PolygonAnnotation, self).hoverEnterEvent(event)
 
     def hoverLeaveEvent(self, event):
-        self.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
+        #self.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
         super(PolygonAnnotation, self).hoverLeaveEvent(event)
     def mousePressEvent(self, event):
         print("polygon clicked")
@@ -677,8 +678,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         folder_name =QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Folder","D:/work/",
                                        QtWidgets.QFileDialog.ShowDirsOnly
                                        | QtWidgets.QFileDialog.DontResolveSymlinks
-
-                                       | QtWidgets.QFileDialog.DontUseNativeDialog                          )
+                      )
         print(folder_name)
         image_names = get_files(folder_name, format_=['jpg', 'png', 'bmp','tif','tiff'])
         print(image_names)
@@ -719,6 +719,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
     def handle_cur_class(self,idx=0):
         self.cur_class=idx
         PolygonAnnotation.cur_class=self.cur_class
+
     @QtCore.pyqtSlot()
     def save_image(self):
 
@@ -758,6 +759,23 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         print(self.folder+'/'+'mask'+'/'+tmpstr)
         img_name=self.folder+'/'+'mask'+'/'+tmpstr
         Qimg.save(img_name)
+        npqimg=Qimg.convertToFormat(QtGui.QImage.Format.Format_RGB32)
+        nparray=qimg2array(npqimg)
+        nparray=cv2.cvtColor(nparray,cv2.COLOR_BGR2RGB)
+
+        #[ [class1,(r1,g1,b1,alpha1)]  , [ class2,(r2,g2,b2,alpha2)]]
+        gray_mask=np.zeros(nparray.shape,dtype=np.uint8)
+        for idx,cls in enumerate(PolygonAnnotation.color_table):
+            r=cls[1][0]
+            g=cls[1][1]
+            b=cls[1][2]
+            loc=np.where(((nparray[:,:,2]==r) & (nparray[:,:,1]==g) & (nparray[:,:,0]==b)))
+            gray_mask[loc[0],loc[1]]=idx+1
+
+        if not os.path.isdir(self.folder+'/'+'gray_mask'):os.mkdir(self.folder+'/'+'gray_mask')
+        gray_img_name=self.folder+'/'+'gray_mask'+'/'+tmpstr
+        cv2.imencode('.tif', gray_mask)[1].tofile(gray_img_name)
+
         for item in Allpoly.all_poly:
             item.retoring_color_brush()
             self.m_scene.addItem(item)
@@ -785,7 +803,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                     idx=item.m_index
 
                     gidx=self.binary_search(tempsum,0,len(tempsum),idx+1)
-                    print("binary search complete idx:%d gidx:%d"%(idx+1,gidx))
+                    #print("binary search complete idx:%d gidx:%d"%(idx+1,gidx))
                     gidx-=1
                     if gidx!=lsgno:
                         file.write("$")
