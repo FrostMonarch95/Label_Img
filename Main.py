@@ -147,6 +147,7 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
     #input:exterior_data  [  [ (x1,y1),(x2,y2) ,...  ] ,...  [(x1,y1),（x2,y2) , ...]  ]
     #每一组应该分别用 painter addpolygon
     def MySetFatherSonPolygon(self,exterior_data):
+        if len(exterior_data[0])<=1:return #当只有1个点或者没有点的时候需要退出
         count=0
 
         for gno,group in enumerate(exterior_data):
@@ -292,7 +293,7 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent=None):
         super(AnnotationScene, self).__init__(parent)
         self.image_item = QtWidgets.QGraphicsPixmapItem()
-
+        self.polygon_item = PolygonAnnotation(self)
         self.image_item.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
         self.addItem(self.image_item)
         self.parent=parent  #scene的父亲，一般默认是主界面QMainWindow
@@ -415,21 +416,23 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
                 it.del_instruction=Instructions.Delete_Instruction
             return
         elif instruction== Instructions.Polygon_Instruction:
-
-
             self.polygon_item = PolygonAnnotation(self)
 
 
             print("all poly append")
             print(self.polygon_item)
 
-            Allpoly.all_poly.append(self.polygon_item)
+
             self.addItem(self.polygon_item)
             print("add successfully")
         elif instruction==Instructions.Polygon_Finish:
+            if len(self.polygon_item.m_points[0])<=1:return    #当没有点输入，我们可以直接退出
+            Allpoly.all_poly.append(self.polygon_item)
+
             dock1_idx=self.parent.dock1_listwidget.count()
             self.polygon_item.dock_idx=dock1_idx
             tmpstr=self.parent.classes_name_color_pair[self.polygon_item.my_color][0]
+            self.polygon_item = PolygonAnnotation(self) #清空
             self.parent.dock1_listwidget.addItem(tmpstr)
         else:pass
     #ref:https://www.cnblogs.com/anningwang/p/7581545.html
@@ -675,7 +678,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def load_file_image(self):
-        folder_name =QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Folder","D:/work/",
+        folder_name =QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Folder","D:\\WORK\\UESTC\\",
                                        QtWidgets.QFileDialog.ShowDirsOnly
                                        | QtWidgets.QFileDialog.DontResolveSymlinks
                       )
