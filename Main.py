@@ -10,7 +10,8 @@ import numpy as np
 import gdal
 import copy as cp
 from labelDialog import LabelDialog
-
+def opencv_major_version():
+    return int(cv2.__version__.split(".")[0])
 def get_files(path, type_='file', format_='*'):
     assert type_ in ['file', 'folder']
     name_list = []
@@ -360,7 +361,10 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
                 img[count//col][count%col]=255
             count+=1
         null_t=np.zeros(img.shape,dtype=np.uint8)
-        cont,hierarchy=cv2.findContours(img,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_SIMPLE)
+        if opencv_major_version()!=3:
+            cont,hierarchy=cv2.findContours(img,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_SIMPLE)
+        else:
+            __,cont,hierarchy=cv2.findContours(img,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_SIMPLE)
         mis_match=AnnotationScene.approx_poly_dp_mis
         tree=[]
         for i in range(len(cont)):
@@ -509,7 +513,10 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
             gradient=255-gradient
             #cv2.imshow("gradient ",gradient)
             #cv2.waitKey(0)
-            cnts,_=cv2.findContours(gradient,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+            if opencv_major_version()!=3:
+                cnts,_=cv2.findContours(gradient,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+            else:
+                __,cnts,_=cv2.findContours(gradient,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
 
             cntsSorted = sorted(cnts, key=lambda x: cv2.contourArea(x))
             suc=0
