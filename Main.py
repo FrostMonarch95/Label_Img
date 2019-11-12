@@ -7,9 +7,9 @@ import cv2
 from qimage2ndarray import rgb_view as qimg2array
 from skimage import io as iio
 import numpy as np
-
 import gdal
 import copy as cp
+from labelDialog import LabelDialog
 
 def get_files(path, type_='file', format_='*'):
     assert type_ in ['file', 'folder']
@@ -46,7 +46,6 @@ class SpinBoxWindow(QtWidgets.QMainWindow):
     def valuechange(self):
         x=float(self.sp.value())
         AnnotationScene.approx_poly_dp_mis=((x-self.x1)*self.y0-self.y1*(x-self.x0))/(self.x0-self.x1)
-
 class GripItem(QtWidgets.QGraphicsPathItem):
     circle = QtGui.QPainterPath()
     circle.addEllipse(QtCore.QRectF(-2, -2, 5, 5))
@@ -99,6 +98,7 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         self.poly_scene=my_scene    #表明多边形正放在哪个scene上面.
         self.del_instruction=Instructions.Hand_instruction #默认不进入删除模式
         self.my_color= PolygonAnnotation.cur_class  #作为color_table的下标 用于指示画本个多边形的颜色
+        #color信息其实就是类别信息.
         self.dock_idx=-1    #表示这是dock第几行 默认从零开始 主要用于在dock中 删除或者修改这行信息
         self.setZValue(10)
         self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
@@ -254,6 +254,17 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
     def hoverLeaveEvent(self, event):
         #self.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
         super(PolygonAnnotation, self).hoverLeaveEvent(event)
+    def mouseDoubleClickEvent(self, event):
+        print("double click polygon!")
+        ret=self.poly_scene.parent.LabelDialog.popUp()
+        if ret is None:return
+        self.my_color=ret
+        item=self.poly_scene.parent.dock1_listwidget.item(self.dock_idx)
+        item.setText(self.poly_scene.parent.classes_name_color_pair[self.my_color][0])
+        self.retoring_color_brush()
+
+        super(PolygonAnnotation, self).mouseDoubleClickEvent(event)
+
     def mousePressEvent(self, event):
         print("polygon clicked")
         if self.del_instruction == Instructions.Delete_Instruction:
@@ -569,6 +580,8 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         self.dock1.setWidget(self.dock1_listwidget) #每次增删多边形都要对这个进行操作.
         self.dock1_listwidget.itemClicked.connect(self.brush_item)
         self.dock1_ls_poly=None #重新渲染
+        self.LabelDialog=None   #用于重新选择多边形的类别.
+
         self.m_view = AnnotationView()
         self.m_scene = AnnotationScene(self)
 
@@ -579,7 +592,8 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
 
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea,self.dock1)
-        self.read_classes_and_colors()
+        self.read_classes_and_colors()  #添加类别和颜色信息
+        self.createLabelDialod()#这时候可以生成改变类别信息的label
         self.create_menus()
 
 
@@ -587,6 +601,10 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         QtWidgets.QShortcut(QtCore.Qt.Key_Left, self, activated=partial (self.next_image,-1))
         QtWidgets.QShortcut(QtCore.Qt.Key_Right, self, activated=partial(self.next_image,1))
         QtWidgets.QShortcut(QtCore.Qt.Key_C, self, activated=self.m_scene.Flip_show)
+    def createLabelDialod(self):
+        out=[stringBox[0] for stringBox in self.classes_name_color_pair]
+        self.LabelDialog=LabelDialog(parent=None,listItem=out)
+
     def brush_item(self):
         if self.dock1_ls_poly is not None and self.dock1_ls_poly in Allpoly.all_poly:
             self.dock1_ls_poly.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
