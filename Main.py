@@ -431,8 +431,10 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
                 it.del_instruction=Instructions.Delete_Instruction
             return
         elif instruction== Instructions.Polygon_Instruction:
-            self.polygon_item = PolygonAnnotation(self)
+            for it in Allpoly.all_poly:
+                it.del_instruction=Instructions.Hand_instruction
 
+            self.polygon_item = PolygonAnnotation(self)
 
             print("all poly append")
             print(self.polygon_item)
