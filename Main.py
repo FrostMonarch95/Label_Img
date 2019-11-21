@@ -203,9 +203,9 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         len_sum=0
         gno=-1
         idx=-1
-        print("mouse move in scene detected!")
-        print(self.m_points)
-        print(i)
+        #print("mouse move in scene detected!")
+        #print(self.m_points)
+        #print(i)
         for gno,group in enumerate(self.m_points):
             len_sum+=len(group)
         tmp_lensum=len_sum
@@ -671,6 +671,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
         save_action=menu_file.addAction("&Save Image")
         save_action.triggered.connect(self.save_image)
+        QtWidgets.QShortcut(QtGui.QKeySequence.Save, self, activated=self.save_image)
         load_image_action.triggered.connect(self.load_image)
 
         menu_instructions = self.menuBar().addMenu("Intructions")
@@ -709,6 +710,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                                        QtWidgets.QFileDialog.ShowDirsOnly
                                        | QtWidgets.QFileDialog.DontResolveSymlinks
                       )
+        print("opening folder")
         print(folder_name)
         image_names = get_files(folder_name, format_=['jpg', 'png', 'bmp','tif','tiff'])
         print(image_names)
@@ -872,13 +874,16 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                 "Open Image",
                 QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.PicturesLocation), #QtCore.QDir.currentPath(),
                 "Image Files (*.png *.jpg *.bmp *.tif *.tiff)")
+            if filename is '':return    #用户按了取消.
             self.image_list_all_dir = []
             image_names=[]
             ls=filename.split('/')
             image_names.append(ls.pop())
             folder_name="/"
             folder_name= folder_name.join(ls)
+            print("opening folder")
             print(folder_name)
+            print("opening image")
             print(image_names)
             self.image_last_dir=[]
             self.folder=folder_name
