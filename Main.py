@@ -49,15 +49,16 @@ class SpinBoxWindow(QtWidgets.QMainWindow):
         AnnotationScene.approx_poly_dp_mis=((x-self.x1)*self.y0-self.y1*(x-self.x0))/(self.x0-self.x1)
 class GripItem(QtWidgets.QGraphicsPathItem):
     circle = QtGui.QPainterPath()
-    circle.addEllipse(QtCore.QRectF(-2, -2, 5, 5))
+    circle.addEllipse(QtCore.QRectF(-7, -7, 15, 15))
+
     square = QtGui.QPainterPath()
-    square.addRect(QtCore.QRectF(-5, -5, 10, 10))
+    square.addRect(QtCore.QRectF(-10, -10, 20, 20))
 
     def __init__(self, annotation_item, index):
         super(GripItem, self).__init__()
         self.m_annotation_item = annotation_item
         self.m_index = index
-
+        #self.setFlag(QtWidgets.QGraphicsItem.ItemIgnoresTransformations, True)
         self.setPath(GripItem.circle)
         self.setBrush(QtGui.QColor("green"))
         self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
@@ -102,7 +103,10 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         #color信息其实就是类别信息.
         self.dock_idx=-1    #表示这是dock第几行 默认从零开始 主要用于在dock中 删除或者修改这行信息
         self.setZValue(10)
-        self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
+        qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+        qpen.setCosmetic(True)
+        self.setPen(qpen)
+
         self.setAcceptHoverEvents(True)
 
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable, True)
@@ -128,7 +132,9 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable, True)
 
         col=PolygonAnnotation.color_table[self.my_color][1]
-        self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
+        qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+        qpen.setCosmetic(True)
+        self.setPen(qpen)
         self.setBrush(QtGui.QColor(col[0], col[1], col[2], col[3]))
 
 
@@ -284,7 +290,6 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
                     del Allpoly.all_poly[idx]
                     break
 
-
         super(PolygonAnnotation, self).mousePressEvent(event)
 
 
@@ -397,9 +402,6 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
             self.polygon_item.MySetFatherSonPolygon(my_data_exchange)
             self.setCurrentInstruction(Instructions.Polygon_Finish)
 
-
-
-
     #if we want to display a nir we need to use this
     def Flip_show(self):
         if self.cv_nir_img is None or self.cv_img is None:return
@@ -437,7 +439,9 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
             self.polygon_item = PolygonAnnotation(self)
 
             print("all poly append")
+
             print(self.polygon_item)
+
 
 
             self.addItem(self.polygon_item)
@@ -546,6 +550,8 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
         if self.current_instruction == Instructions.Polygon_Instruction:
             #print("move point %d"%(self.polygon_item.number_of_points()-1))
             self.polygon_item.movePoint(self.polygon_item.number_of_points()-1, event.scenePos())
+            if self.polygon_item.number_of_points():
+                self.polygon_item.m_items[-1].setPos(event.scenePos())
         super(AnnotationScene, self).mouseMoveEvent(event)
 
 
@@ -706,10 +712,16 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def load_file_image(self):
-        folder_name =QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Folder","D:\\WORK\\UESTC\\",
-                                       QtWidgets.QFileDialog.ShowDirsOnly
-                                       | QtWidgets.QFileDialog.DontResolveSymlinks
-                      )
+        try:
+            folder_name =QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Folder","D:\\WORK\\UESTC\\",
+                                           QtWidgets.QFileDialog.ShowDirsOnly
+                                           | QtWidgets.QFileDialog.DontResolveSymlinks
+                          )
+        except Exception as e:
+
+            print(e)
+            return
+        if folder_name is "":return
         print("opening folder")
         print(folder_name)
         image_names = get_files(folder_name, format_=['jpg', 'png', 'bmp','tif','tiff'])
