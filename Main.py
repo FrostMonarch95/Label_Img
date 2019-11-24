@@ -49,10 +49,9 @@ class SpinBoxWindow(QtWidgets.QMainWindow):
         AnnotationScene.approx_poly_dp_mis=((x-self.x1)*self.y0-self.y1*(x-self.x0))/(self.x0-self.x1)
 class GripItem(QtWidgets.QGraphicsPathItem):
     circle = QtGui.QPainterPath()
-    circle.addEllipse(QtCore.QRectF(-7, -7, 15, 15))
-
+    circle.addEllipse(QtCore.QRectF(-2, -2, 5, 5))
     square = QtGui.QPainterPath()
-    square.addRect(QtCore.QRectF(-10, -10, 20, 20))
+    square.addRect(QtCore.QRectF(-5, -5, 10, 10))
 
     def __init__(self, annotation_item, index):
         super(GripItem, self).__init__()
