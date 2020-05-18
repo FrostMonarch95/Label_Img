@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../deeplabv3_2cls/.idea/deeplabv3_2cls.iml" filepath="$PROJECT_DIR$/../deeplabv3_2cls/.idea/deeplabv3_2cls.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/prediction.iml" filepath="$PROJECT_DIR$/.idea/prediction.iml" />
+    </modules>
+  </component>
+</project>

@@ -1,0 +1,5 @@
+road
+bare road
+car
+building
+smoke

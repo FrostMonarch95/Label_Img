@@ -2,15 +2,20 @@
 from enum import Enum
 from functools import partial
 from PyQt5 import QtWidgets, QtGui, QtCore
+from PyQt5 import QtTest
 import os
 import cv2
 from qimage2ndarray import rgb_view as qimg2array
 from skimage import io as iio
 import numpy as np
-
 import gdal
+import time
 import copy as cp
+import prediction.prediction_all_in_one
 
+from labelDialog import *
+def opencv_major_version():
+    return int(cv2.__version__.split(".")[0])
 def get_files(path, type_='file', format_='*'):
     assert type_ in ['file', 'folder']
     name_list = []
@@ -33,6 +38,7 @@ class SpinBoxWindow(QtWidgets.QMainWindow):
         self.sp =QtWidgets.QSpinBox()
         self.sp.setMinimum(1)
         self.sp.setMaximum(10)
+        self.sp.setValue(10)
         layout.addWidget(self.sp)
         self.sp.valueChanged.connect(self.valuechange)
         wid=QtWidgets.QWidget()
@@ -43,10 +49,10 @@ class SpinBoxWindow(QtWidgets.QMainWindow):
         self.x1=10.0
         self.y0=0.01
         self.y1=0.001
+        self.valuechange()
     def valuechange(self):
         x=float(self.sp.value())
         AnnotationScene.approx_poly_dp_mis=((x-self.x1)*self.y0-self.y1*(x-self.x0))/(self.x0-self.x1)
-
 class GripItem(QtWidgets.QGraphicsPathItem):
     circle = QtGui.QPainterPath()
     circle.addEllipse(QtCore.QRectF(-2, -2, 5, 5))
@@ -57,7 +63,7 @@ class GripItem(QtWidgets.QGraphicsPathItem):
         super(GripItem, self).__init__()
         self.m_annotation_item = annotation_item
         self.m_index = index
-
+        #self.setFlag(QtWidgets.QGraphicsItem.ItemIgnoresTransformations, True)
         self.setPath(GripItem.circle)
         self.setBrush(QtGui.QColor("green"))
         self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
@@ -99,9 +105,13 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         self.poly_scene=my_scene    #表明多边形正放在哪个scene上面.
         self.del_instruction=Instructions.Hand_instruction #默认不进入删除模式
         self.my_color= PolygonAnnotation.cur_class  #作为color_table的下标 用于指示画本个多边形的颜色
+        #color信息其实就是类别信息.
         self.dock_idx=-1    #表示这是dock第几行 默认从零开始 主要用于在dock中 删除或者修改这行信息
         self.setZValue(10)
-        self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
+        qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+        qpen.setCosmetic(True)
+        self.setPen(qpen)
+
         self.setAcceptHoverEvents(True)
 
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable, True)
@@ -127,7 +137,9 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable, True)
 
         col=PolygonAnnotation.color_table[self.my_color][1]
-        self.setPen(QtGui.QPen(QtGui.QColor("green"), 2))
+        qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+        qpen.setCosmetic(True)
+        self.setPen(qpen)
         self.setBrush(QtGui.QColor(col[0], col[1], col[2], col[3]))
 
 
@@ -147,6 +159,7 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
     #input:exterior_data  [  [ (x1,y1),(x2,y2) ,...  ] ,...  [(x1,y1),（x2,y2) , ...]  ]
     #每一组应该分别用 painter addpolygon
     def MySetFatherSonPolygon(self,exterior_data):
+        if len(exterior_data[0])<=1:return #当只有1个点或者没有点的时候需要退出
         count=0
 
         for gno,group in enumerate(exterior_data):
@@ -201,9 +214,9 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         len_sum=0
         gno=-1
         idx=-1
-        print("mouse move in scene detected!")
-        print(self.m_points)
-        print(i)
+        #print("mouse move in scene detected!")
+        #print(self.m_points)
+        #print(i)
         for gno,group in enumerate(self.m_points):
             len_sum+=len(group)
         tmp_lensum=len_sum
@@ -253,6 +266,17 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
     def hoverLeaveEvent(self, event):
         #self.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
         super(PolygonAnnotation, self).hoverLeaveEvent(event)
+    def mouseDoubleClickEvent(self, event):
+        print("double click polygon!")
+        ret=self.poly_scene.parent.LabelDialog.popUp()
+        if ret is None:return
+        self.my_color=ret
+        item=self.poly_scene.parent.dock1_listwidget.item(self.dock_idx)
+        item.setText(self.poly_scene.parent.classes_name_color_pair[self.my_color][0])
+        self.retoring_color_brush()
+
+        super(PolygonAnnotation, self).mouseDoubleClickEvent(event)
+
     def mousePressEvent(self, event):
         print("polygon clicked")
         if self.del_instruction == Instructions.Delete_Instruction:
@@ -270,7 +294,6 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
                 if poly == self:
                     del Allpoly.all_poly[idx]
                     break
-
 
         super(PolygonAnnotation, self).mousePressEvent(event)
 
@@ -292,7 +315,7 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent=None):
         super(AnnotationScene, self).__init__(parent)
         self.image_item = QtWidgets.QGraphicsPixmapItem()
-
+        self.polygon_item = PolygonAnnotation(self)
         self.image_item.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
         self.addItem(self.image_item)
         self.parent=parent  #scene的父亲，一般默认是主界面QMainWindow
@@ -305,12 +328,24 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
         self.all_poly=[]    #insert all polygon
         self.dpl_suffix=[".jpg",".png",".tif",".tiff"]  #深度学习允许后缀
         self.current_instruction = Instructions.Hand_instruction
-    #注意 使用深度学习的label的后缀为jpg,png,tif,tiff
-    def deep_learning_show(self):
-        print(self.file_name)
-        if self.file_name=="":
-            print("no image loaded before")
-            return
+    def itemDisappearShow(self):    #让所有多边形消失，再按一次X键所有控件显示.
+        if self.file_name is "":return
+        func=self.itemDisappearShow.__func__
+        if not hasattr(func,"flag"):
+            func.flag=0
+
+        for poly in Allpoly.all_poly:
+            self.removeItem(poly)
+            for grip in poly.m_items:
+                self.removeItem(grip)
+        if func.flag:
+            for poly in Allpoly.all_poly:
+                self.addItem(poly)
+                for grip in poly.m_items:
+                    self.addItem(grip)
+        func.flag=not func.flag
+    #input:full_path 一般为self.file_name目的是得到前一级 folder以及当前的图片的名字
+    def get_folder_and_image_name(self,full_path):
         ls=self.file_name.split("/")
         img_name=ls.pop()
         ls2=img_name.split(".")
@@ -320,6 +355,24 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
 
         folder="/"
         folder=folder.join(ls)
+        return (folder,img_name)
+    def deep_learning_pth(self):
+        if self.file_name=="":
+            print("no image loaded before")
+            return
+        folder,img_name=self.get_folder_and_image_name(self.file_name)
+        if not os.path.isdir(folder+"/label/"):os.mkdir(folder+"/label/")
+        prediction.prediction_all_in_one.deep_learning_to_label(self.file_name,folder+"/label/")
+        print("model pth process complete")
+        self.deep_learning_show()
+
+    #注意 使用深度学习的label的后缀为jpg,png,tif,tiff
+    def deep_learning_show(self):
+        print(self.file_name)
+        if self.file_name=="":
+            print("no image loaded before")
+            return
+        folder,img_name=self.get_folder_and_image_name(self.file_name)
         actsuf=""
         for suf in self.dpl_suffix:
             print(folder+'/label/'+img_name+'_label'+suf)
@@ -348,7 +401,10 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
                 img[count//col][count%col]=255
             count+=1
         null_t=np.zeros(img.shape,dtype=np.uint8)
-        cont,hierarchy=cv2.findContours(img,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_SIMPLE)
+        if opencv_major_version()!=3:
+            cont,hierarchy=cv2.findContours(img,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_SIMPLE)
+        else:
+            __,cont,hierarchy=cv2.findContours(img,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_SIMPLE)
         mis_match=AnnotationScene.approx_poly_dp_mis
         tree=[]
         for i in range(len(cont)):
@@ -381,9 +437,6 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
             self.polygon_item.MySetFatherSonPolygon(my_data_exchange)
             self.setCurrentInstruction(Instructions.Polygon_Finish)
 
-
-
-
     #if we want to display a nir we need to use this
     def Flip_show(self):
         if self.cv_nir_img is None or self.cv_img is None:return
@@ -415,21 +468,27 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
                 it.del_instruction=Instructions.Delete_Instruction
             return
         elif instruction== Instructions.Polygon_Instruction:
-
+            for it in Allpoly.all_poly:
+                it.del_instruction=Instructions.Hand_instruction
 
             self.polygon_item = PolygonAnnotation(self)
 
-
             print("all poly append")
+
             print(self.polygon_item)
 
-            Allpoly.all_poly.append(self.polygon_item)
+
+
             self.addItem(self.polygon_item)
             print("add successfully")
         elif instruction==Instructions.Polygon_Finish:
+            if len(self.polygon_item.m_points[0])<=1:return    #当没有点输入，我们可以直接退出
+            Allpoly.all_poly.append(self.polygon_item)
+
             dock1_idx=self.parent.dock1_listwidget.count()
             self.polygon_item.dock_idx=dock1_idx
             tmpstr=self.parent.classes_name_color_pair[self.polygon_item.my_color][0]
+            self.polygon_item = PolygonAnnotation(self) #清空
             self.parent.dock1_listwidget.addItem(tmpstr)
         else:pass
     #ref:https://www.cnblogs.com/anningwang/p/7581545.html
@@ -495,7 +554,10 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
             gradient=255-gradient
             #cv2.imshow("gradient ",gradient)
             #cv2.waitKey(0)
-            cnts,_=cv2.findContours(gradient,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+            if opencv_major_version()!=3:
+                cnts,_=cv2.findContours(gradient,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+            else:
+                __,cnts,_=cv2.findContours(gradient,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
 
             cntsSorted = sorted(cnts, key=lambda x: cv2.contourArea(x))
             suc=0
@@ -523,6 +585,8 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
         if self.current_instruction == Instructions.Polygon_Instruction:
             #print("move point %d"%(self.polygon_item.number_of_points()-1))
             self.polygon_item.movePoint(self.polygon_item.number_of_points()-1, event.scenePos())
+            if self.polygon_item.number_of_points():
+                self.polygon_item.m_items[-1].setPos(event.scenePos())
         super(AnnotationScene, self).mouseMoveEvent(event)
 
 
@@ -566,24 +630,36 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         self.dock1.setWidget(self.dock1_listwidget) #每次增删多边形都要对这个进行操作.
         self.dock1_listwidget.itemClicked.connect(self.brush_item)
         self.dock1_ls_poly=None #重新渲染
+        self.LabelDialog=None   #用于重新选择多边形的类别.
+        self.progress_bar=QtWidgets.QProgressBar(None)
+        self.progress_bar.setGeometry(500, 500, 300, 50)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
+        #self.progress_bar.show()
+        self.progress_bar.hide()
+
         self.m_view = AnnotationView()
         self.m_scene = AnnotationScene(self)
 
+        self.allBandImage=None
+        self.bandList=[]
+
         self.m_view.setScene(self.m_scene)
-
-
         self.setCentralWidget(self.m_view)
-
-
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea,self.dock1)
-        self.read_classes_and_colors()
+        self.read_classes_and_colors()  #添加类别和颜色信息
+        self.createLabelDialod()#这时候可以生成改变类别信息的label
         self.create_menus()
-
-
+        QtWidgets.QShortcut(QtCore.Qt.Key_X,self,activated=self.m_scene.itemDisappearShow)
         QtWidgets.QShortcut(QtCore.Qt.Key_Escape, self, activated=partial(self.m_scene.setCurrentInstruction, Instructions.Polygon_Finish))
         QtWidgets.QShortcut(QtCore.Qt.Key_Left, self, activated=partial (self.next_image,-1))
         QtWidgets.QShortcut(QtCore.Qt.Key_Right, self, activated=partial(self.next_image,1))
         QtWidgets.QShortcut(QtCore.Qt.Key_C, self, activated=self.m_scene.Flip_show)
+    def createLabelDialod(self):
+        out=[stringBox[0] for stringBox in self.classes_name_color_pair]
+        self.LabelDialog=LabelDialog(parent=None,listItem=out)
+
     def brush_item(self):
         if self.dock1_ls_poly is not None and self.dock1_ls_poly in Allpoly.all_poly:
             self.dock1_ls_poly.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
@@ -641,6 +717,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
         save_action=menu_file.addAction("&Save Image")
         save_action.triggered.connect(self.save_image)
+        QtWidgets.QShortcut(QtGui.QKeySequence.Save, self, activated=self.save_image)
         load_image_action.triggered.connect(self.load_image)
 
         menu_instructions = self.menuBar().addMenu("Intructions")
@@ -654,13 +731,19 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         dpl= menu_instructions.addAction("Deep learning from label image")
         dpl.triggered.connect(self.m_scene.deep_learning_show)
 
+        deep_learning_action=menu_instructions.addAction("Deep learning from pth")
+        deep_learning_action.triggered.connect(self.m_scene.deep_learning_pth)
 
         restoring_action=menu_instructions.addAction("Hand Mode")
         restoring_action.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Hand_instruction))
 
 
-        overload_test=self.menuBar().addMenu("Parameter")
+
+
+        overload_test=self.menuBar().addMenu("Setting")
         save_img_memo_ts=overload_test.addAction("polyApproximate")
+        bandSwap=overload_test.addAction("BandSwap")
+        bandSwap.triggered.connect(self.bandSwap)
         save_img_memo_ts.triggered.connect(self.polyApproximate)
 
         ccls=self.menuBar().addMenu("Current Class")
@@ -669,16 +752,38 @@ class AnnotationWindow(QtWidgets.QMainWindow):
             ccls_action=ccls.addAction(i[0])
             ccls_action.triggered.connect(partial(self.handle_cur_class,idx))
     @QtCore.pyqtSlot()
+    def bandSwap(self):
+        if self.allBandImage is None:return
+        tmp=self.allBandImage.copy()
+        for idx,ele in enumerate(self.bandList):
+            ele=int(ele)
+            tmp[:,:,ele]=self.allBandImage[:,:,idx].copy()
+        dialog=bandOption(self.bandList)
+        ret=dialog.popUp()
+        if ret is None:return
+        self.bandList=ret.copy()
+        for idx,ele in enumerate(self.bandList):
+            self.allBandImage[:,:,idx]=tmp[:,:,ele]
+        self.m_scene.load_image(self.allBandImage[:,:,0:3])
+
+    @QtCore.pyqtSlot()
     def polyApproximate(self):
         sp=SpinBoxWindow(self)
         sp.show()
 
     @QtCore.pyqtSlot()
     def load_file_image(self):
-        folder_name =QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Folder","D:/work/",
-                                       QtWidgets.QFileDialog.ShowDirsOnly
-                                       | QtWidgets.QFileDialog.DontResolveSymlinks
-                      )
+        try:
+            folder_name =QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Folder","D:\\WORK\\UESTC\\",
+                                           QtWidgets.QFileDialog.ShowDirsOnly
+                                           | QtWidgets.QFileDialog.DontResolveSymlinks
+                          )
+        except Exception as e:
+
+            print(e)
+            return
+        if folder_name is "":return
+        print("opening folder")
         print(folder_name)
         image_names = get_files(folder_name, format_=['jpg', 'png', 'bmp','tif','tiff'])
         print(image_names)
@@ -719,18 +824,21 @@ class AnnotationWindow(QtWidgets.QMainWindow):
     def handle_cur_class(self,idx=0):
         self.cur_class=idx
         PolygonAnnotation.cur_class=self.cur_class
+    def onCountChanged(self,val):
+        self.progress_bar.setValue(val)
 
     @QtCore.pyqtSlot()
     def save_image(self):
-
+        self.progress_bar.show()
+        calc = External()
+        calc.countChanged.connect(self.onCountChanged)
+        calc.start()
         area=self.m_scene.sceneRect()
         if int(area.height())==0 or int(area.width())==0:return 0
         img=np.zeros((int(area.height()),int(area.width()),3),dtype=np.uint8)
-
         x=img.shape[1]
         y=img.shape[0]
         Qimg =QtGui.QImage(np.uint8(img), x, y,img[0,:].nbytes,QtGui.QImage.Format_RGB888)
-
         #print(Qimg.save("tmp.png"))
         pixmap = QtGui.QPixmap.fromImage(Qimg)
         pixmap_item=QtWidgets.QGraphicsPixmapItem()
@@ -757,9 +865,11 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         tmpstr=tmpstr.join(ls)
         tmpstr=tmpstr+"_mask.tif"
         print(self.folder+'/'+'mask'+'/'+tmpstr)
+        if not os.path.isdir(self.folder+"/mask/"):os.mkdir(self.folder+"/mask/")
         img_name=self.folder+'/'+'mask'+'/'+tmpstr
+
         Qimg.save(img_name)
-        npqimg=Qimg.convertToFormat(QtGui.QImage.Format.Format_RGB32)
+        npqimg=Qimg.convertToFormat(QtGui.QImage.Format_RGB32)
         nparray=qimg2array(npqimg)
         nparray=cv2.cvtColor(nparray,cv2.COLOR_BGR2RGB)
 
@@ -786,10 +896,13 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         ls.append("txt")
         tmpstr="."
         txt_name=tmpstr.join(ls)
+
+
         with open(txt_name,"w+") as file:
             #写文件的格式如下：
             #point (x1,y1) (x2,y2)  ... (xn,yn) （通过空格表示间隔,注意存放必须按照多边形的顶点的顺时针或者逆时针 顺序存储！）
             #class x （x表示这个多边形所属类别）
+
             for poly in Allpoly.all_poly:
                 file.write("point")
                 tempsum=[0]
@@ -823,6 +936,10 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                 file.write(str(poly.my_color))
                 file.write("\n")
 
+        self.progress_bar.setValue(100)
+        QtTest.QTest.qWait(500)
+        self.progress_bar.hide()
+
     def binary_search(self,lis,x,y,goal):
         while x<y:
 
@@ -842,13 +959,16 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                 "Open Image",
                 QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.PicturesLocation), #QtCore.QDir.currentPath(),
                 "Image Files (*.png *.jpg *.bmp *.tif *.tiff)")
+            if filename is '':return    #用户按了取消.
             self.image_list_all_dir = []
             image_names=[]
             ls=filename.split('/')
             image_names.append(ls.pop())
             folder_name="/"
             folder_name= folder_name.join(ls)
+            print("opening folder")
             print(folder_name)
+            print("opening image")
             print(image_names)
             self.image_last_dir=[]
             self.folder=folder_name
@@ -869,6 +989,16 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
             self.m_scene.file_name=filename
             ret_img=self.Multiband2Array(filename)
+            print("read successfully step 1")
+            if len(ret_img.shape)<3:
+                lis=list(ret_img.shape)
+                lis.append(1)
+                ret_img.shape=tuple(lis)
+
+            self.allBandImage=ret_img.copy()
+            self.bandList=[]
+            for i in range(ret_img.shape[2]):
+                self.bandList.append(i)
             if ret_img.shape[2]>3:
                 self.m_scene.cv_img=ret_img[:,:,0:3]
                 self.m_scene.cv_nir_img=np.zeros((ret_img.shape[0],ret_img.shape[1],3),dtype=np.uint8)
@@ -956,8 +1086,9 @@ class AnnotationWindow(QtWidgets.QMainWindow):
     # 若像素值不在0-255 范围内，本函数会进行线性拉伸到0-255.
 
     def Multiband2Array(self,path):
-
+        print("using gdal")
         src_ds = gdal.Open(path)
+        print("gdal suc")
         if src_ds is None:
             print('Unable to open %s'% path)
             sys.exit(1)
@@ -985,6 +1116,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         if np.max(data)>255:
             data=np.uint8(self.stretch_n(np.float32(data))*255)
             #cv2.imwrite("ts.tiff",data)
+
         return np.uint8(data)
 
 if __name__ == '__main__':
