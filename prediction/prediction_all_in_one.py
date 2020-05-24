@@ -35,8 +35,8 @@ class DeepLabV3(nn.Module):
         h = x.size()[2]
         w = x.size()[3]
 
-        feature_map = self.resnet(
-            x)  # (shape: (batch_size, 512, h/16, w/16)) (assuming self.resnet is ResNet18_OS16 or ResNet34_OS16. If self.resnet is ResNet18_OS8 or ResNet34_OS8, it will be (batch_size, 512, h/8, w/8). If self.resnet is ResNet50-152, it will be (batch_size, 4*512, h/16, w/16))
+        feature_map = self.resnet(x)
+        # (shape: (batch_size, 512, h/16, w/16)) (assuming self.resnet is ResNet18_OS16 or ResNet34_OS16. If self.resnet is ResNet18_OS8 or ResNet34_OS8, it will be (batch_size, 512, h/8, w/8). If self.resnet is ResNet50-152, it will be (batch_size, 4*512, h/16, w/16))
 
         output = self.aspp(feature_map)  # (shape: (batch_size, num_classes, h/16, w/16))
 
@@ -153,13 +153,13 @@ import torch.utils.model_zoo as model_zoo
 __all__ = ['ResNet', 'resnet18']
 
 
-# model_urls = {
-#     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-#     'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-#     'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-#     'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
-#     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
-# }
+model_urls = {
+    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
+    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
+    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
+    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
+    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
+}
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -485,24 +485,27 @@ def colorize_mask(mask):
     new_mask = Image.fromarray(mask.astype(np.uint8)).convert('P')
     new_mask.putpalette(palette)
     return new_mask  ###Image
-def stretch_n(bands, lower_percent=2, higher_percent=98):
-        # print(bands.dtype)
-        # 一定要使用float32类型，原因有两个：1、Keras不支持float64运算；2、float32运算要好于uint16
-        out = np.zeros_like(bands).astype(np.float32)
-        # print(out.dtype)
-        for i in range(bands.shape[2]):
-            # 这里直接拉伸到[0,1]之间，不需要先拉伸到[0,255]后面再转
-            a = 0
-            b = 1
-            # 计算百分位数（从小到大排序之后第 percent% 的数）
-            c = np.percentile(bands[:, :, i], lower_percent)
-            d = np.percentile(bands[:, :, i], higher_percent)
-            t = a + (bands[:, :, i] - c) * (b - a) / (d - c)
-            t[t < a] = a
-            t[t > b] = b
-            out[:, :, i] = t
 
-        return out
+
+def stretch_n(bands, lower_percent=2, higher_percent=98):
+    # print(bands.dtype)
+    # 一定要使用float32类型，原因有两个：1、Keras不支持float64运算；2、float32运算要好于uint16
+    out = np.zeros_like(bands).astype(np.float32)
+    # print(out.dtype)
+    for i in range(bands.shape[2]):
+        # 这里直接拉伸到[0,1]之间，不需要先拉伸到[0,255]后面再转
+        a = 0
+        b = 1
+        # 计算百分位数（从小到大排序之后第 percent% 的数）
+        c = np.percentile(bands[:, :, i], lower_percent)
+        d = np.percentile(bands[:, :, i], higher_percent)
+        t = a + (bands[:, :, i] - c) * (b - a) / (d - c)
+        t[t < a] = a
+        t[t > b] = b
+        out[:, :, i] = t
+
+    return out
+
 
 def tiff2numpy(tiff_path):
     if tiff_path.endswith('.tiff') or tiff_path.endswith('.tif'):
@@ -516,9 +519,9 @@ def tiff2numpy(tiff_path):
         # im_greenBand = tiff_data[1, 0:im_height, 0:im_width]  # 获取绿波段
         # im_redBand = tiff_data[2, 0:im_height, 0:im_width]  # 获取红波段
         # im_nirBand = tiff_data[3, 0:im_height, 0:im_width]  # 获取近红外波段
-        if np.max(tiff_data)>255:
-            tiff_data=np.uint8(stretch_n(np.float32(tiff_data.transpose(1,2,0)))*255)
-            tiff_data=tiff_data.transpose(2,0,1)
+        if np.max(tiff_data) > 255:
+            tiff_data = np.uint8(stretch_n(np.float32(tiff_data.transpose(1, 2, 0))) * 255)
+            tiff_data = tiff_data.transpose(2, 0, 1)
         return im_width, im_height, tiff_data  ###numpy格式,shape(C*H*W)
     else:
         print("filepath error:please check you input tiff_image")
@@ -586,8 +589,7 @@ def load_model(model_path, mode=2, cls_nums=2):
     return net
 
 
-def swell_prediction(model_path, tiff_img_path, save_img_path,patch_size=256, mode=2, cls_nums=2):
-
+def swell_prediction(model_path, tiff_img_path, save_img_path, patch_size=256, mode=2, cls_nums=2):
     """
     :param model_path:模型权重文件
     :param tiff_img_path: tiff文件路径,8位,4通道tiff
@@ -604,24 +606,23 @@ def swell_prediction(model_path, tiff_img_path, save_img_path,patch_size=256, mo
 
     net = load_model(model_path, mode=mode, cls_nums=mode_dict[str(mode)])
 
-
-    if im_width < 3*patch_size or im_height < 3*patch_size:
+    if im_width < 3 * patch_size or im_height < 3 * patch_size:
         img = data_process(im_data)
         predictions_numpy = prediction_small_image(net, im_data=img)
     else:
         im_data = img_padding(im_data, patch_size=patch_size)
         c, h, w = im_data.shape
-        im_data = np.pad(im_data,((0, 0), (patch_size, patch_size), (patch_size, patch_size)), 'constant',
+        im_data = np.pad(im_data, ((0, 0), (patch_size, patch_size), (patch_size, patch_size)), 'constant',
                          constant_values=0)
         x_len = int(w / patch_size)
         y_len = int(h / patch_size)
         predictions_numpy = np.zeros((h, w)).astype(np.uint8)
         for i in tqdm(range(x_len)):
             for j in range(y_len):
-                img = im_data[:, j * patch_size:(j+3) * patch_size,
+                img = im_data[:, j * patch_size:(j + 3) * patch_size,
                       i * patch_size:(i + 3) * patch_size].transpose(1, 2, 0)
                 img = data_process(img)
-                predictions_ = prediction_small_image(net, img)[patch_size:2*patch_size,patch_size:2*patch_size]
+                predictions_ = prediction_small_image(net, img)[patch_size:2 * patch_size, patch_size:2 * patch_size]
                 predictions_numpy[j * patch_size:(j + 1) * patch_size,
                 i * patch_size:(i + 1) * patch_size] = predictions_
         predictions_numpy = predictions_numpy[0:im_height, 0:im_width]
@@ -630,21 +631,25 @@ def swell_prediction(model_path, tiff_img_path, save_img_path,patch_size=256, mo
     predictions_img = colorize_mask(predictions_numpy)
     predictions_img.save(save_img_path)
     print("finish inference image:{}".format(save_img_path.split("/")[-1]))
-#input_img_path 输入图片的路径 例如 ：D:/aaa.jpg
-#save_img_path 保存的图片的路径最后带有 例如：D:/label/
-def deep_learning_to_label(input_img_path,save_img_path):
+
+
+# input_img_path 输入图片的路径 例如 ：D:/aaa.jpg
+# save_img_path 保存的图片的路径最后带有 例如：D:/label/
+def deep_learning_to_label(input_img_path, save_img_path):
     print("deep learning ")
-    
-    model_path="epoch_178_acc_0.80090_acc-cls_0.69342_mean-iu_0.45412.pth"  #默认直接读取相对路径的pth 后面可以修改
-    tiff_img_path=input_img_path
-    
-    save_img_path=save_img_path+input_img_path.split('/')[-1].replace(".tiff","_muti.png").replace(".tif",".png")
+
+    model_path = "epoch_178_acc_0.80090_acc-cls_0.69342_mean-iu_0.45412.pth"  # 默认直接读取相对路径的pth 后面可以修改
+    tiff_img_path = input_img_path
+
+    save_img_path = save_img_path + input_img_path.split('/')[-1].replace(".tiff", "_muti.png").replace(".tif", ".png")
     print(tiff_img_path)
     print("here")
     print(save_img_path)
-    swell_prediction(model_path=model_path, tiff_img_path=tiff_img_path, save_img_path=save_img_path,patch_size=256, mode=1,
+    swell_prediction(model_path=model_path, tiff_img_path=tiff_img_path, save_img_path=save_img_path, patch_size=256,
+                     mode=1,
                      cls_nums=8)
-               
+
+
 if __name__ == "__main__":
     model_path = "./pretrained_model/models_muti_cls/epoch_178_acc_0.80090_acc-cls_0.69342_mean-iu_0.45412.pth"
     tiff_img_root = "./tiff_img"
@@ -654,9 +659,10 @@ if __name__ == "__main__":
     # tiff_img_name = "116_projection_CUT.tif"
 
     tiff_img_path = os.path.join(tiff_img_root, tiff_img_name)
-    save_img_path = os.path.join(seg_img_root, tiff_img_name.replace(".tiff", ".png").replace(".tif",".png"))
+    save_img_path = os.path.join(seg_img_root, tiff_img_name.replace(".tiff", ".png").replace(".tif", ".png"))
 
-    swell_prediction(model_path=model_path, tiff_img_path=tiff_img_path, save_img_path=save_img_path,patch_size=256, mode=1,
+    swell_prediction(model_path=model_path, tiff_img_path=tiff_img_path, save_img_path=save_img_path, patch_size=256,
+                     mode=1,
                      cls_nums=8)
 
     """

@@ -12,8 +12,7 @@ import gdal
 import time
 import copy as cp
 import prediction.prediction_all_in_one
-import dbUI
-import mydb
+
 from labelDialog import *
 def opencv_major_version():
     return int(cv2.__version__.split(".")[0])
@@ -488,7 +487,6 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
 
             dock1_idx=self.parent.dock1_listwidget.count()
             self.polygon_item.dock_idx=dock1_idx
-            
             tmpstr=self.parent.classes_name_color_pair[self.polygon_item.my_color][0]
             self.polygon_item = PolygonAnnotation(self) #清空
             self.parent.dock1_listwidget.addItem(tmpstr)
@@ -621,11 +619,6 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
     def __init__(self, parent=None):
         super(AnnotationWindow, self).__init__(parent)
-        login = dbUI.Login()
-        if login.exec_() == QtWidgets.QDialog.Accepted:
-            self.use_db = True;
-        else:self.use_db = False;
-                
         self.classes_name_color_pair=[["default",(255,0,0,100)]]     #类别颜色对 [  [class1, (r1,g1,b1,alpha1)],[class2,(r2,g2,b2,alpha2) ...]   ]
         self.cur_class=0    #表明当前所在类别
         self.image_list_all_dir=[]  #表明当前正在访问的图片的路径的全称 例如: [D:/Work/Pet.png,D:/Work/Lake.png ...]
@@ -651,6 +644,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
         self.allBandImage=None
         self.bandList=[]
+
         self.m_view.setScene(self.m_scene)
         self.setCentralWidget(self.m_view)
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea,self.dock1)
@@ -757,19 +751,6 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         for idx,i in enumerate(self.classes_name_color_pair):
             ccls_action=ccls.addAction(i[0])
             ccls_action.triggered.connect(partial(self.handle_cur_class,idx))
-
-        db_instructions = self.menuBar().addMenu("Database")
-        sc = db_instructions.addAction("Scan")
-        sc.triggered.connect(self.db_scan)
-        sch = db_instructions.addAction("Search")
-        sch.triggered.connect(self.db_search)
-        dle = db_instructions.addAction("delete")
-        if not self.use_db:
-            sc.setEnabled(False)
-            sch.setEnabled(False)
-            dle.setEnabled(False)
-    
-        
     @QtCore.pyqtSlot()
     def bandSwap(self):
         if self.allBandImage is None:return
@@ -784,46 +765,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         for idx,ele in enumerate(self.bandList):
             self.allBandImage[:,:,idx]=tmp[:,:,ele]
         self.m_scene.load_image(self.allBandImage[:,:,0:3])
-    @QtCore.pyqtSlot()
-    def db_scan(self):
-        try:
-            folder_name =QtWidgets.QFileDialog.getExistingDirectory(self, "Choose Folder","D:\\WORK\\UESTC\\",
-                                           QtWidgets.QFileDialog.ShowDirsOnly
-                                           | QtWidgets.QFileDialog.DontResolveSymlinks
-                          )
-        except Exception as e:
-            print(e)
-            return
-        if folder_name is "":return
-        try:
-            dbUI.scan_and_insert_to_table(folder_name)
-        except Exception as e:
-            print(e);
-            return
-    @QtCore.pyqtSlot()
-    def db_search(self):
-        swindow = dbUI.search_window()
-        if swindow.exec_() == QtWidgets.QDialog.Accepted:
-            if swindow.ret_data != -1:
-                res_win = dbUI.select_result_window(swindow.ret_data);
-                if res_win.exec_()  == QtWidgets.QDialog.Accepted:
-                    if not len(swindow.ret_data):return
-                    self.image_list_all_dir = []
-                    self.image_last_dir=[]
-                    self.image_poi=0
-                    self.folder = None
-                    for ele in swindow.ret_data:
-                        self.image_list_all_dir.append(ele[0])
-                        self.image_last_dir.append(ele[0].split("\\")[-1])
 
-                    self.load_image(self.image_list_all_dir[self.image_poi])
-                else:return;
-
-            else:
-                print("select error")
-                print(mydb.db_error)
-                return
-        
     @QtCore.pyqtSlot()
     def polyApproximate(self):
         sp=SpinBoxWindow(self)
@@ -927,7 +869,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         img_name=self.folder+'/'+'mask'+'/'+tmpstr
 
         Qimg.save(img_name)
-        npqimg=Qimg.convertToFormat(QtGui.QImage.Format_RGB32)
+        npqimg=Qimg.convertToFormat(QtGui.QImagex.Format_RGB32)
         nparray=qimg2array(npqimg)
         nparray=cv2.cvtColor(nparray,cv2.COLOR_BGR2RGB)
 
@@ -1047,8 +989,6 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
             self.m_scene.file_name=filename
             ret_img=self.Multiband2Array(filename)
-            if self.folder is None:self.folder = filename.split("\\")[0]
-
             print("read successfully step 1")
             if len(ret_img.shape)<3:
                 lis=list(ret_img.shape)
@@ -1075,19 +1015,19 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
             self.m_scene.load_image(self.m_scene.cv_img)
             self.setWindowTitle(filename)
-            self.load_item_from_txt()
+            self.load_item_from_txt(filename)
             self.m_view.fitInView(self.m_scene.image_item, QtCore.Qt.KeepAspectRatio)
             self.m_view.centerOn(self.m_scene.image_item)
-    def load_item_from_txt(self):
-       
-        img_name= self.image_last_dir[self.image_poi]
-        folder_name=self.folder
+    def load_item_from_txt(self,filename):
+        ls=filename.split("/")
+        img_name= ls.pop()
+        folder_name="/"
+        folder_name=folder_name.join(ls)
         ls=img_name.split(".")
         ls.pop()
         mask_name="."
         mask_name=mask_name.join(ls)
         mask_name= mask_name+"_mask.txt"
-        #print("load from txt ",folder_name,mask_name)
         if  not os.path.isfile(folder_name+"/mask/"+mask_name):return
         with open(folder_name+"/mask/"+mask_name,"r") as file:
             lines=file.readlines()
