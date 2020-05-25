@@ -110,3 +110,4 @@ venv.bak/
 /mydb.py
 /prediction/org_img/
 /prediction/prediction_all_in_one.py
+Main.py
