@@ -11,7 +11,8 @@ import numpy as np
 import gdal
 import time
 import copy as cp
-import prediction.prediction_all_in_one
+#import prediction.prediction_all_in_one
+import prediction.prediction_tang
 import dbUI
 import mydb
 from labelDialog import *
@@ -347,6 +348,9 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
         func.flag=not func.flag
     #input:full_path 一般为self.file_name目的是得到前一级 folder以及当前的图片的名字
     def get_folder_and_image_name(self,full_path):
+        if len(full_path.split("\\"))>1:
+            ls = full_path.split("\\")
+            return (ls[0],ls[1])
         ls=self.file_name.split("/")
         img_name=ls.pop()
         ls2=img_name.split(".")
@@ -363,7 +367,7 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
             return
         folder,img_name=self.get_folder_and_image_name(self.file_name)
         if not os.path.isdir(folder+"/label/"):os.mkdir(folder+"/label/")
-        prediction.prediction_all_in_one.deep_learning_to_label(self.file_name,folder+"/label/")
+        prediction.prediction_tang.deep_learning_glue(self.file_name,folder+"/label/")
         print("model pth process complete")
         self.deep_learning_show()
 
