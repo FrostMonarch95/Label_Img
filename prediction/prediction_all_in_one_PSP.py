@@ -549,7 +549,7 @@ class Prediction:
         image_file = os.path.basename(image_file).split('.')[0]
         colorized_mask = colorize_mask(mask, self.palette)
         colorized_mask.save(os.path.join(output_path, image_file + '_color_label.png'))
-        mask = Image.fromarray(mask)
+        mask = Image.fromarray(np.uint8(mask))
         mask.save(os.path.join(output_path, image_file + '_label.png'))
 
 if __name__ == '__main__':

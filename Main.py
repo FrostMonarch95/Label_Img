@@ -11,7 +11,7 @@ import numpy as np
 import gdal
 import time
 import copy as cp
-#import prediction.prediction_all_in_one
+
 import prediction.prediction_tang
 import dbUI
 import mydb
