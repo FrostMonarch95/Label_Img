@@ -671,13 +671,19 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         self.LabelDialog=LabelDialog(parent=None,listItem=out)
 
     def brush_item(self):
-        if self.dock1_ls_poly is not None and self.dock1_ls_poly in Allpoly.all_poly:
-            self.dock1_ls_poly.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
-
         idx=self.dock1_listwidget.currentRow()
-        col=PolygonAnnotation.color_table[Allpoly.all_poly[idx].my_color][1]
+        if self.dock1_ls_poly is not None and self.dock1_ls_poly in Allpoly.all_poly:
+            qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+            self.dock1_ls_poly.setPen(qpen)
+        if Allpoly.all_poly[idx] == self.dock1_ls_poly:
+            qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+            self.dock1_ls_poly.setPen(qpen)
+            return;
 
-        Allpoly.all_poly[idx].setBrush(QtGui.QColor(col[0], col[1], col[2], col[3]))
+        
+        qpen=QtGui.QPen(QtGui.QColor("red"), 10)
+        qpen.setCosmetic(True)
+        Allpoly.all_poly[idx].setPen(qpen)
         self.dock1_ls_poly= Allpoly.all_poly[idx]
 
 
