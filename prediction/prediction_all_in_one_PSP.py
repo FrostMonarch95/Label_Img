@@ -513,7 +513,7 @@ class Prediction:
         with torch.no_grad():
             image1 = Image.open(self.img_path).convert('RGB')
             prediction1 = self.predict(image1)
-            print('set(prediction1)', np.unique(prediction1))
+            # print('set(prediction1)', np.unique(prediction1))
             self.save_images(prediction1, self.save_path, self.img_path)
 
     def predict(self, image):
