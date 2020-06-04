@@ -187,7 +187,6 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         path_tmp=self.from_points_2_path(self.m_points)
         self.setPath(path_tmp)
         item = GripItem(self, len(self.m_points[0]) - 1)
-
         self.scene().addItem(item)
         self.m_items.append(item)
         item.setPos(p)
@@ -281,6 +280,8 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
 
     def mousePressEvent(self, event):
         print("polygon clicked")
+        click_x = event.scenePos().x();
+        click_y = event.scenePos().y();
         if self.del_instruction == Instructions.Delete_Instruction:
             print("deleting polygon")
             for it in self.m_items:
@@ -296,6 +297,39 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
                 if poly == self:
                     del Allpoly.all_poly[idx]
                     break
+        else:   #now we support function of add point within a line
+            k_diff_const = 1e-1   # the k diff we allow
+            lspoint = 0;
+            for group_no,group in enumerate(self.m_points):
+                suc = 0;
+                for idx in range(len(group)-1):
+                    lsy = group[idx].y()
+                    lsx = group[idx].x()
+
+                    nxy = group[idx+1].y()
+                    nxx = group[idx+1].x()
+
+                    k1=(nxy - lsy)/(nxx - lsx) 
+                    k2 = (click_y - lsy) / (click_x - lsx)
+                    if abs(k1-k2)<=k_diff_const:    #we find a potential point of inserting
+                        self.m_points[group_no].insert(idx+1,event.scenePos());
+                        path_tmp=self.from_points_2_path(self.m_points)
+                        self.setPath(path_tmp)
+                        item = GripItem(self, lspoint+idx)
+                        self.scene().addItem(item)
+                        item.setPos(event.scenePos())
+                        self.m_items.insert(lspoint+idx+1,item);
+                        for j in range(lspoint+idx+1,len(self.m_items)):    #all points idx below should plus 1
+                                self.m_items[j].m_index+=1
+                        suc=1;
+                        break;
+                    else:continue;
+                lspoint+=len(group)
+                if suc:break;
+                    
+
+
+
 
         super(PolygonAnnotation, self).mousePressEvent(event)
 
