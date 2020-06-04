@@ -230,11 +230,10 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
                 if i+1<=len_sum:
                     idx=i-old_lensum
                     break
-            print("%d %d"%(gno,idx))
+            
             assert  gno!=-1 and idx!=-1
             self.m_points[gno][idx] = self.mapFromScene(p)
-            #assert(self.m_points[i].x() == p.x() and self.m_points[i].y() == p.y())
-            #self.m_points[i]=p
+            print("move point ",self.m_points[gno][idx])
             path_tmp=self.from_points_2_path(self.m_points)
             self.setPath(path_tmp)
 
@@ -302,25 +301,35 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
             lspoint = 0;
             for group_no,group in enumerate(self.m_points):
                 suc = 0;
-                for idx in range(len(group)-1):
+                for idx in range(len(group)):
                     lsy = group[idx].y()
                     lsx = group[idx].x()
 
-                    nxy = group[idx+1].y()
-                    nxx = group[idx+1].x()
+                    nxy = group[(idx+1)%len(group)].y()
+                    nxx = group[(idx+1)%len(group)].x()
 
-                    k1=(nxy - lsy)/(nxx - lsx) 
-                    k2 = (click_y - lsy) / (click_x - lsx)
-                    if abs(k1-k2)<=k_diff_const:    #we find a potential point of inserting
+                    k1=(nxy - lsy)/(nxx - lsx + 1e-12) 
+                    k2 = (click_y - lsy) / (click_x - lsx + 1e-12)
+                    
+                    minx = min(lsx,nxx)
+                    maxx = max(lsx,nxx)
+
+                    miny = min(lsy,nxy)
+                    maxy = max(lsy,nxy)
+
+                    if abs(k1-k2)<=abs(k1*2/10) and click_x>=minx and click_x<= maxx and click_y>=miny and click_y<=maxy  :    #we find a potential point of inserting
+                        
                         self.m_points[group_no].insert(idx+1,event.scenePos());
+                        
                         path_tmp=self.from_points_2_path(self.m_points)
                         self.setPath(path_tmp)
-                        item = GripItem(self, lspoint+idx)
+                        item = GripItem(self, lspoint+idx+1)
                         self.scene().addItem(item)
-                        item.setPos(event.scenePos())
                         self.m_items.insert(lspoint+idx+1,item);
-                        for j in range(lspoint+idx+1,len(self.m_items)):    #all points idx below should plus 1
+                        for j in range(lspoint+idx+2,len(self.m_items)):    #all points idx below should plus 1
                                 self.m_items[j].m_index+=1
+                        item.setPos(event.scenePos())
+                        
                         suc=1;
                         break;
                     else:continue;
