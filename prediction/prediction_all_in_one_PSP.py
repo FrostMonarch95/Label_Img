@@ -513,7 +513,7 @@ class Prediction:
         with torch.no_grad():
             image1 = Image.open(self.img_path).convert('RGB')
             prediction1 = self.predict(image1)
-            print('set(prediction1)', np.unique(prediction1))
+            # print('set(prediction1)', np.unique(prediction1))
             self.save_images(prediction1, self.save_path, self.img_path)
 
     def predict(self, image):
@@ -546,11 +546,12 @@ class Prediction:
     def save_images(self, mask, output_path, image_file):
         if not os.path.exists(output_path):
             os.mkdir(output_path)
-        image_file = os.path.basename(image_file).split('.')[0]
+        image_file = os.path.basename(image_file)
         colorized_mask = colorize_mask(mask, self.palette)
-        colorized_mask.save(os.path.join(output_path, image_file + '_color_label.png'))
+        colorized_mask.save(os.path.join(output_path, image_file[:-4] + '_color_label.png'))
         mask = Image.fromarray(np.uint8(mask))
-        mask.save(os.path.join(output_path, image_file + '_label.png'))
+        mask.save(os.path.join(output_path, image_file[:-4] + '_label.png'))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
