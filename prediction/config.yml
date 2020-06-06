@@ -1,4 +1,4 @@
 training:
     model_path: './best_model.pth'
-    img_path: './org_img/Hid0_Wid2_GF2_PMS2_E103.5_N30.4_20181125_L1A0003622807-MSS2.jpg' # .tif
+    img_path: './org_img/Hid0_Wid2_GF2_PMS2_E103.5_N30.4_20181125_L1A0003622807-MSS2.tif'
     save_path: './predict'
