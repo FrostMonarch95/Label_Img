@@ -14,6 +14,7 @@ import torch.nn.functional as F
 import yaml
 from PIL import Image
 from scipy import ndimage
+from tifffile import tifffile
 from torchvision import transforms
 
 try:
@@ -508,16 +509,26 @@ class Prediction:
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
 
+    def openImage(self):
+        if "jpg" in self.img_path or "png" in self.img_path:
+            image = Image.open(self.img_path).convert('RGB')  # return Image object
+        elif "tiff" in self.img_path or "tif" in self.img_path:
+            image = tifffile.imread(self.img_path)   # returns numpy array
+        else:
+            raise TypeError("The input image format doesn\'t support, we only support png,jpg and tiff format ")
+
+        return image
+
     def predict_pics(self):
         # testing
         with torch.no_grad():
-            image1 = Image.open(self.img_path).convert('RGB')
-            prediction1 = self.predict(image1)
-            # print('set(prediction1)', np.unique(prediction1))
-            self.save_images(prediction1, self.save_path, self.img_path)
+            tensor = self.to_tensor(self.openImage())[:3, :, :]
+            prediction = self.predict(tensor)
+            # print('set(prediction)', np.unique(prediction))
+            self.save_images(prediction, self.save_path, self.img_path)
 
-    def predict(self, image):
-        inputs = self.normalize(self.to_tensor(image)).unsqueeze(0)
+    def predict(self, tensor):
+        inputs = self.normalize(tensor).unsqueeze(0)
         prediction = self.multi_scale_predict(inputs)
         prediction = F.softmax(torch.from_numpy(prediction), dim=0).argmax(0).cpu().numpy()
 
@@ -544,6 +555,12 @@ class Prediction:
         return total_predictions
 
     def save_images(self, mask, output_path, image_file):
+        """
+        :param mask: the numpy array to save
+        :param output_path:
+        :param image_file:
+        :return: nothing but saved images
+        """
         if not os.path.exists(output_path):
             os.mkdir(output_path)
         image_file = os.path.basename(image_file)
@@ -551,6 +568,7 @@ class Prediction:
         colorized_mask.save(os.path.join(output_path, image_file[:-4] + '_color_label.png'))
         mask = Image.fromarray(np.uint8(mask))
         mask.save(os.path.join(output_path, image_file[:-4] + '_label.png'))
+        print("You have succssfully saved predicted result in both colorful and black version !!")
 
 
 if __name__ == '__main__':
