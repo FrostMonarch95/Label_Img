@@ -233,7 +233,7 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
             
             assert  gno!=-1 and idx!=-1
             self.m_points[gno][idx] = self.mapFromScene(p)
-            print("move point ",self.m_points[gno][idx])
+            #print("move point ",self.m_points[gno][idx])
             path_tmp=self.from_points_2_path(self.m_points)
             self.setPath(path_tmp)
 
@@ -816,11 +816,12 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         sc.triggered.connect(self.db_scan)
         sch = db_instructions.addAction("Search")
         sch.triggered.connect(self.db_search)
-        dle = db_instructions.addAction("delete")
+        drt = db_instructions.addAction("Drop table")
+        drt.triggered.connect(self.db_drop_table)
         if not self.use_db:
             sc.setEnabled(False)
             sch.setEnabled(False)
-            dle.setEnabled(False)
+            drt.setEnabled(False)
     
         
     @QtCore.pyqtSlot()
@@ -854,28 +855,32 @@ class AnnotationWindow(QtWidgets.QMainWindow):
             print(e);
             return
     @QtCore.pyqtSlot()
+    def db_drop_table(self):
+        drop_window = dbUI.drop_table_window()
+        drop_window.exec_()
+
+    @QtCore.pyqtSlot()
     def db_search(self):
+        lines=mydb.singleton_data_base.select_count_lines()
+        if lines == -1:return
         swindow = dbUI.search_window()
         if swindow.exec_() == QtWidgets.QDialog.Accepted:
-            if swindow.ret_data != -1:
-                res_win = dbUI.select_result_window(swindow.ret_data);
-                if res_win.exec_()  == QtWidgets.QDialog.Accepted:
-                    if not len(swindow.ret_data):return
-                    self.image_list_all_dir = []
-                    self.image_last_dir=[]
-                    self.image_poi=0
-                    self.folder = None
-                    for ele in swindow.ret_data:
-                        self.image_list_all_dir.append(ele[0])
-                        self.image_last_dir.append(ele[0].split("\\")[-1])
+            res_win = dbUI.select_result_window(swindow.parameter_dict);
+            if res_win.exec_()  == QtWidgets.QDialog.Accepted:
+                if res_win.ret_data == -1:return
+                if not len(res_win.ret_data):return
+                self.image_list_all_dir = []
+                self.image_last_dir=[]
+                self.image_poi=0
+                self.folder = None
+                for ele in res_win.ret_data:
+                    self.image_list_all_dir.append(ele[0])
+                    self.image_last_dir.append(ele[0].split("\\")[-1])
 
-                    self.load_image(self.image_list_all_dir[self.image_poi])
-                else:return;
+                self.load_image(self.image_list_all_dir[self.image_poi])
+            else:return;
 
-            else:
-                print("select error")
-                print(mydb.db_error)
-                return
+            
         
     @QtCore.pyqtSlot()
     def polyApproximate(self):

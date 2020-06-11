@@ -98,10 +98,13 @@ class Login(QtWidgets.QDialog):
                 self, 'Error', 'Bad user or password')
 class select_result_window(QtWidgets.QDialog):
 
-    def __init__(self,sql_data, parent = None):
+    def __init__(self,sql_para, parent = None):
         super(select_result_window, self).__init__(parent)
         self.table = QtWidgets.QTableView()
-        
+        self.para = sql_para
+        sql_data = singleton_data_base.select_from_lines(**sql_para)
+        self.ret_data = sql_data        #remember to update this after updating table in this class!
+        if sql_data == -1:self.myreject()
         col = [str(i+1) for i in range(len(sql_data))]
         print(col)
         data = pd.DataFrame(sql_data, columns = ["file","satelite","sensor","latitude","longtitude","shottime","id","spectrum"], index=col)
@@ -115,17 +118,56 @@ class select_result_window(QtWidgets.QDialog):
         self.buttonBox = QDialogButtonBox(QBtn)
         self.buttonBox.accepted.connect(self.myaccept)
         self.buttonBox.rejected.connect(self.myreject)
+
+        self.delete_button = QtWidgets.QPushButton("Delete row(s)")
+        self.delete_button.clicked.connect(self.delete_row) 
         layout = QtWidgets.QVBoxLayout()
         
         layout.addWidget(self.table)  #table view
+        
+        layout.addWidget(self.delete_button,alignment=QtCore.Qt.AlignRight)
+
         layout.addWidget(self.buttonBox)  #pushbutton
+
         self.setLayout(layout)
         self.resize(1024,500)
+    def delete_row(self):
+        table=self.table
+        indexes = table.selectionModel().selectedRows()
+        for index in sorted(indexes):
+            key=table.model().index(index.row(),0).data()
+            singleton_data_base.delete_line(key)
+            print('Row %d is selected and delete' % index.row())
+        sql_data = singleton_data_base.select_from_lines(**self.para)
+        self.ret_data = sql_data        #remember to update this after updating table in this class!
+        if sql_data == -1:self.myreject()
+        col = [str(i+1) for i in range(len(sql_data))]
+        data = pd.DataFrame(sql_data, columns = ["file","satelite","sensor","latitude","longtitude","shottime","id","spectrum"], index=col)
+        self.model = TableModel(data)
+        self.table.setModel(self.model)
+            
+        
     def myaccept(self):
         self.accept();
     def myreject(self):
         self.reject();
+class  drop_table_window(QtWidgets.QDialog):
+    def __init__(self,parent = None):
         
+        super(drop_table_window, self).__init__(parent)
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(QtWidgets.QLabel("Are you sure you want to drop the table"))
+        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        self.buttonBox = QDialogButtonBox(QBtn)
+        self.buttonBox.accepted.connect(self.myaccept)
+        self.buttonBox.rejected.connect(self.reject)
+        layout.addWidget(self.buttonBox)
+        self.setLayout(layout)
+    def myaccept(self):
+        singleton_data_base.drop_table()
+        self.accept()
+
+
 class search_window(QtWidgets.QDialog):
     def spectrum_cb_change(self):
         if self.spectrum_cb.currentText() != 'ALL':
@@ -146,10 +188,11 @@ class search_window(QtWidgets.QDialog):
     # def dateChanged_right(self):
         # self.rdate_changed = 1
     def __init__(self, parent=None):
-        self.ret_data = '' #shows the return data of selecting
+        #self.ret_data = '' #shows the return data of selecting
         self.satelite_text = '' #which satelite the user want to use
         self.sensor_text = '' #which sensor the user want to use
         self.spectrum_text = '' #which spectrum the user want to use
+        self.parameter_dict = ""    #the parameters the user input
         # self.ldate_changed = 0  #user modify the left date
         # self.rdate_changed = 0   #user modify the right date
         
@@ -242,7 +285,8 @@ class search_window(QtWidgets.QDialog):
         if self.sensor_cb.currentText() != 'ALL':dic["sensor"] = self.sensor_cb.currentText()
         if self.id.text() != '':dic["id"] = self.id.text();
         if self.spectrum_cb.currentText()!= 'ALL':dic["spectrum"] = self.spectrum_cb.currentText()
-        self.ret_data =  singleton_data_base.select_from_lines(**dic)
+        self.parameter_dict=dic
+        #self.ret_data =  singleton_data_base.select_from_lines(**dic)
         self.accept();
     def myreject(self):
         self.reject();
@@ -255,17 +299,9 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     
     login = Login()
-    
-    
     if login.exec_() == QtWidgets.QDialog.Accepted:
         swindow = search_window()
         if swindow.exec_() == QtWidgets.QDialog.Accepted:
-            if swindow.ret_data != -1:
-                print(swindow.ret_data);
-                res_win = select_result_window(swindow.ret_data);
-                res_win.exec_();
-            else:
-                
-                print("select error")
-                print(mydb.db_error)
+            res_win = select_result_window(swindow.parameter_dict)
+            res_win.exec_()
         print("database test done")   

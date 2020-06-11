@@ -21,8 +21,20 @@ class my_data_base:
             print("select distinct error")
             print(e)
             return -1
-         
-
+    #返回表中有多少行数据.
+    # 返回 -1 表示出现错误，可以用来检查表是否可用 
+    # 返回 其它数字代表行数.
+    def select_count_lines(self):
+        global db_error
+        command = "select count(*) from remote_sensing_core_table"
+        try:
+            self.cursor.execute(command)
+            records=self.cursor.fetchall();
+            return records
+        except Error as e:
+            print(e)
+            db_error=e
+            return -1
     #kwargs["satelite"] = 'GF1','GF2' ......
     #kwargs["longtitude"] = (-180,180) 这是一个元组表明我们搜索的经度范围为 [-180,180]
     #kwargs["latitude"] = (-90,90) 这是一个元组表明我们搜索的纬度范围为 [-180,180]
