@@ -8,6 +8,8 @@ from collections import OrderedDict
 from itertools import chain
 
 import numpy as np
+import tifffile.tifffile
+import imagecodecs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -434,12 +436,12 @@ class PSPNet(BaseModel):
         x = self.layer4(x_aux)
 
         output = self.master_branch(x)
-        output = F.interpolate(output, size=input_size, mode='bilinear')
+        output = F.interpolate(output, size=input_size, mode='bilinear', align_corners=True)
         output = output[:, :, :input_size[0], :input_size[1]]
 
         if self.training and self.use_aux:
             aux = self.auxiliary_branch(x_aux)
-            aux = F.interpolate(aux, size=input_size, mode='bilinear')
+            aux = F.interpolate(aux, size=input_size, mode='bilinear',align_corners= True)
             aux = aux[:, :, :input_size[0], :input_size[1]]
             return output, aux
         return output
@@ -507,17 +509,28 @@ class Prediction:
         # data
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
+        print('The prediction begins, please wait patiently for your result')
+
+    def openImage(self):
+        if "jpg" in self.img_path or "png" in self.img_path:
+            image = Image.open(self.img_path).convert('RGB')  # return Image object
+        elif "tiff" in self.img_path or "tif" in self.img_path:
+            image = tifffile.imread(self.img_path)   # returns numpy array
+        else:
+            raise TypeError("The input image format doesn\'t support, we only support png, jpg and tiff format ")
+
+        return image
 
     def predict_pics(self):
         # testing
         with torch.no_grad():
-            image1 = Image.open(self.img_path).convert('RGB')
-            prediction1 = self.predict(image1)
-            # print('set(prediction1)', np.unique(prediction1))
-            self.save_images(prediction1, self.save_path, self.img_path)
+            tensor = self.to_tensor(self.openImage())[:3, :, :]
+            prediction = self.predict(tensor)
+            # print('set(prediction)', np.unique(prediction))
+            self.save_images(prediction, self.save_path, self.img_path)
 
-    def predict(self, image):
-        inputs = self.normalize(self.to_tensor(image)).unsqueeze(0)
+    def predict(self, tensor):
+        inputs = self.normalize(tensor).unsqueeze(0)
         prediction = self.multi_scale_predict(inputs)
         prediction = F.softmax(torch.from_numpy(prediction), dim=0).argmax(0).cpu().numpy()
 
@@ -525,7 +538,7 @@ class Prediction:
 
     def multi_scale_predict(self, image, flip=False):
         input_size = (image.size(2), image.size(3))
-        upsample = nn.Upsample(size=input_size, mode='bilinear', align_corners=True)
+        upsample = nn.Upsample(size=input_size, align_corners=True, mode='bilinear')
         total_predictions = np.zeros((self.num_classes, image.size(2), image.size(3)))
 
         image = image.data.data.cpu().numpy()
@@ -544,6 +557,12 @@ class Prediction:
         return total_predictions
 
     def save_images(self, mask, output_path, image_file):
+        """
+        :param mask: the numpy array to save
+        :param output_path:
+        :param image_file:
+        :return: nothing but saved images
+        """
         if not os.path.exists(output_path):
             os.mkdir(output_path)
         image_file = os.path.basename(image_file)
@@ -551,6 +570,8 @@ class Prediction:
         colorized_mask.save(os.path.join(output_path, image_file[:-4] + '_color_label.png'))
         mask = Image.fromarray(np.uint8(mask))
         mask.save(os.path.join(output_path, image_file[:-4] + '_label.png'))
+        print("You have successfully saved predicted result in both colorful and black version !!")
+        print("you have saved the result in", output_path)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
