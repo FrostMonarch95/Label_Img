@@ -662,6 +662,18 @@ class AnnotationView(QtWidgets.QGraphicsView):
         self.scale(f, f)
         if self.scene() is not None:
             self.centerOn(self.scene().image_item)
+    def wheelEvent(self, event):
+        factor = 1.1
+        if event.angleDelta().y() < 0:
+            factor = 0.9
+        view_pos = event.pos()
+        scene_pos = self.mapToScene(view_pos)
+        self.centerOn(scene_pos)
+        self.scale(factor, factor)
+        delta = self.mapToScene(view_pos) - self.mapToScene(self.viewport().rect().center())
+        self.centerOn(scene_pos - delta)
+    
+
 
 
 class AnnotationWindow(QtWidgets.QMainWindow):
