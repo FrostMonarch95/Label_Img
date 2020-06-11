@@ -674,8 +674,6 @@ class AnnotationView(QtWidgets.QGraphicsView):
         self.centerOn(scene_pos - delta)
     
 
-
-
 class AnnotationWindow(QtWidgets.QMainWindow):
 
     def __init__(self, parent=None):
