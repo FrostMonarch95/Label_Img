@@ -239,7 +239,8 @@ class my_data_base:
         try:
             self.connection = mysql.connector.connect(host=host,
                                                  user=user_name,
-                                                 password=password)
+                                                 password=password,
+                                                 auth_plugin='mysql_native_password')
             if self.connection.is_connected():
                 db_Info = self.connection.get_server_info()
                 print("Connected to MySQL Server version ", db_Info)

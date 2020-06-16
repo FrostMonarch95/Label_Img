@@ -5,7 +5,7 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5 import QtTest
 import os
 import cv2
-from qimage2ndarray import rgb_view as qimg2array
+
 from skimage import io as iio
 import numpy as np
 import gdal
@@ -952,7 +952,18 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         PolygonAnnotation.cur_class=self.cur_class
     def onCountChanged(self,val):
         self.progress_bar.setValue(val)
+    def QImageToCvMat(self,incomingImage):
+        '''  Converts a QImage into an opencv MAT format  '''
 
+        #incomingImage = incomingImage.convertToFormat(QtGui.QImage.Format.Format_RGB32)
+        #incomingImage=incomingImage.convertToFormat(QtGui.QImage.Format_RGB32)
+        width = incomingImage.width()
+        height = incomingImage.height()
+
+        ptr = incomingImage.bits()
+        ptr.setsize(height * width * 4)
+        arr = np.frombuffer(ptr, np.uint8).reshape((height, width, 4))
+        return arr
     @QtCore.pyqtSlot()
     def save_image(self):
         self.progress_bar.show()
@@ -996,8 +1007,9 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
         Qimg.save(img_name)
         npqimg=Qimg.convertToFormat(QtGui.QImage.Format_RGB32)
-        nparray=qimg2array(npqimg)
-        nparray=cv2.cvtColor(nparray,cv2.COLOR_BGR2RGB)
+        nparray=self.QImageToCvMat(npqimg)
+        nparray=nparray[:,:,0:3]    #the last is ff we choose to omit it
+        #nparray=cv2.cvtColor(nparray,cv2.COLOR_BGR2RGB)
 
         #[ [class1,(r1,g1,b1,alpha1)]  , [ class2,(r2,g2,b2,alpha2)]]
         gray_mask=np.zeros(nparray.shape,dtype=np.uint8)
