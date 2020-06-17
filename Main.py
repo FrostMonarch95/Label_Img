@@ -40,7 +40,7 @@ class SpinBoxWindow(QtWidgets.QMainWindow):
         self.sp =QtWidgets.QSpinBox()
         self.sp.setMinimum(1)
         self.sp.setMaximum(10)
-        self.sp.setValue(10)
+        self.sp.setValue(1)
         layout.addWidget(self.sp)
         self.sp.valueChanged.connect(self.valuechange)
         wid=QtWidgets.QWidget()

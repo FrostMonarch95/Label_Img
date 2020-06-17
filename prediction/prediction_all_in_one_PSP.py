@@ -9,7 +9,7 @@ from itertools import chain
 
 import numpy as np
 import tifffile.tifffile
-import imagecodecs
+#import imagecodecs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
