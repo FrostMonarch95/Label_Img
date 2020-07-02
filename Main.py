@@ -110,8 +110,9 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         #color信息其实就是类别信息.
         self.dock_idx=-1    #表示这是dock第几行 默认从零开始 主要用于在dock中 删除或者修改这行信息
         self.setZValue(10)
-        qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+        qpen=QtGui.QPen(QtGui.QColor("green"), 1)
         qpen.setCosmetic(True)
+        qpen.setWidth(1)
         self.setPen(qpen)
 
         self.setAcceptHoverEvents(True)
@@ -141,6 +142,7 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
         col=PolygonAnnotation.color_table[self.my_color][1]
         qpen=QtGui.QPen(QtGui.QColor("green"), 2)
         qpen.setCosmetic(True)
+        qpen.setWidth(1)
         self.setPen(qpen)
         self.setBrush(QtGui.QColor(col[0], col[1], col[2], col[3]))
 
@@ -290,12 +292,13 @@ class PolygonAnnotation(QtWidgets.QGraphicsPathItem):
             for idx,poly in enumerate(Allpoly.all_poly):
                 if poly.dock_idx>self.dock_idx:
                     print(poly)
-
                     poly.dock_idx-=1
             for idx,poly in enumerate(Allpoly.all_poly):
                 if poly == self:
                     del Allpoly.all_poly[idx]
                     break
+            for it in Allpoly.all_poly:
+                it.del_instruction=Instructions.Hand_instruction 
         else:   #now we support function of add point within a line
             k_diff_const = 1e-1   # the k diff we allow
             lspoint = 0;
@@ -700,6 +703,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
+        self.ccls_action=[] #存放当前类别.
         #self.progress_bar.show()
         self.progress_bar.hide()
 
@@ -714,11 +718,15 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         self.read_classes_and_colors()  #添加类别和颜色信息
         self.createLabelDialod()#这时候可以生成改变类别信息的label
         self.create_menus()
+
+
         QtWidgets.QShortcut(QtCore.Qt.Key_X,self,activated=self.m_scene.itemDisappearShow)
         QtWidgets.QShortcut(QtCore.Qt.Key_Escape, self, activated=partial(self.m_scene.setCurrentInstruction, Instructions.Polygon_Finish))
         QtWidgets.QShortcut(QtCore.Qt.Key_Left, self, activated=partial (self.next_image,-1))
         QtWidgets.QShortcut(QtCore.Qt.Key_Right, self, activated=partial(self.next_image,1))
         QtWidgets.QShortcut(QtCore.Qt.Key_C, self, activated=self.m_scene.Flip_show)
+
+
     def createLabelDialod(self):
         out=[stringBox[0] for stringBox in self.classes_name_color_pair]
         self.LabelDialog=LabelDialog(parent=None,listItem=out)
@@ -727,9 +735,13 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         idx=self.dock1_listwidget.currentRow()
         if self.dock1_ls_poly is not None and self.dock1_ls_poly in Allpoly.all_poly:
             qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+            qpen.setCosmetic(True)
+            qpen.setWidth(1)
             self.dock1_ls_poly.setPen(qpen)
         if Allpoly.all_poly[idx] == self.dock1_ls_poly:
             qpen=QtGui.QPen(QtGui.QColor("green"), 2)
+            qpen.setCosmetic(True)
+            qpen.setWidth(1)
             self.dock1_ls_poly.setPen(qpen)
             return;
 
@@ -816,10 +828,13 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         save_img_memo_ts.triggered.connect(self.polyApproximate)
 
         ccls=self.menuBar().addMenu("Current Class")
-
+        
         for idx,i in enumerate(self.classes_name_color_pair):
-            ccls_action=ccls.addAction(i[0])
-            ccls_action.triggered.connect(partial(self.handle_cur_class,idx))
+
+            self.ccls_action.append(ccls.addAction(i[0]))
+            
+            self.ccls_action[-1].triggered.connect(partial(self.handle_cur_class,idx))
+            
 
         db_instructions = self.menuBar().addMenu("Database")
         sc = db_instructions.addAction("Scan")
@@ -948,6 +963,11 @@ class AnnotationWindow(QtWidgets.QMainWindow):
             time.sleep(0.001)
 
     def handle_cur_class(self,idx=0):
+        for i in range(len(self.ccls_action)):
+            if i!=idx:
+                self.ccls_action[i].setShortcut('')
+            else:
+                self.ccls_action[i].setShortcut('<')
         self.cur_class=idx
         PolygonAnnotation.cur_class=self.cur_class
     def onCountChanged(self,val):
