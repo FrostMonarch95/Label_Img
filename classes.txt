@@ -3,3 +3,4 @@ bare road
 car
 building
 smoke
+中文类别

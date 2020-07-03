@@ -528,8 +528,6 @@ class AnnotationScene(QtWidgets.QGraphicsScene):
 
             print(self.polygon_item)
 
-
-
             self.addItem(self.polygon_item)
             print("add successfully")
         elif instruction==Instructions.Polygon_Finish:
@@ -766,10 +764,10 @@ class AnnotationWindow(QtWidgets.QMainWindow):
     def prev_image(self):
         pass
     def read_classes_and_colors(self):
-        with open("classes.txt","r") as file:
+        with open("classes.txt","rb") as file:
             count=0
             for line in file:
-                line=line[:-1]
+                line=line.decode("utf-8") 
                 if  not count:self.classes_name_color_pair=[]
                 self.classes_name_color_pair.append([line])
                 count+=1
@@ -791,6 +789,60 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
 
     def create_menus(self):
+
+        OpenFileAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/open.png'), 'Ctrl+O', self)
+        
+        OpenFileAct.setIconText("Open a file")
+        OpenFileAct.setShortcut('Ctrl+O')
+        OpenFileAct.setStatusTip('Ctrl+O')
+        OpenFileAct.triggered.connect(self.load_image)
+
+        OpendirAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/open.png'), 'Ctrl+D', self)   
+        OpendirAct.setIconText("Open directory")
+        OpendirAct.setShortcut('Ctrl+D')
+        OpendirAct.setStatusTip('Open directory')
+        OpendirAct.triggered.connect(self.load_file_image)
+
+        SaveAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/save.png'), 'Ctrl+S', self)   
+        SaveAct.setIconText("Save")
+        SaveAct.setStatusTip('Save')
+        SaveAct.triggered.connect(self.save_image)
+
+        PolyAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/objects.png'), 'Ctrl+N', self)   
+        PolyAct.setIconText("New polygon")
+        PolyAct.setShortcut('Ctrl+N')
+        PolyAct.setStatusTip('New polygon')
+        PolyAct.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Polygon_Instruction))
+
+        PolyDeleteAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/cancel.png'), 'Ctrl+R', self)   
+        PolyDeleteAct.setIconText("Delete a polygon")
+        PolyDeleteAct.setShortcut('Ctrl+R')
+        PolyDeleteAct.setStatusTip('Delete a polygon')
+        PolyDeleteAct.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Delete_Instruction))
+
+
+        PolyHandAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/handicon.png'), 'Ctrl+H', self)   
+        PolyHandAct.setIconText("Hand mode")
+        PolyHandAct.setShortcut('Ctrl+H')
+        PolyHandAct.setStatusTip('Hand mode')
+        PolyHandAct.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Hand_instruction))
+
+
+
+        toolbar_speed_dial = QtWidgets.QToolBar('Left menu')
+        toolbar_speed_dial.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+        toolbar_speed_dial.setIconSize(QtCore.QSize(50,50))
+        
+        self.addToolBar(QtCore.Qt.LeftToolBarArea, toolbar_speed_dial)
+        
+        toolbar_speed_dial.addAction(OpenFileAct)
+        toolbar_speed_dial.addAction(OpendirAct)
+        toolbar_speed_dial.addAction(SaveAct)
+        toolbar_speed_dial.addSeparator()
+        toolbar_speed_dial.addAction(PolyAct)
+        toolbar_speed_dial.addAction(PolyDeleteAct)
+        toolbar_speed_dial.addAction(PolyHandAct)
+
         menu_file = self.menuBar().addMenu("File")
         load_image_action = menu_file.addAction("&Load Image")
         load_file_image_action = menu_file.addAction("&Load File Image")
