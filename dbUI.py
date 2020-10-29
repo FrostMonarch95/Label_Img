@@ -37,9 +37,9 @@ class TableModel(QtCore.QAbstractTableModel):
 class Login(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super(Login, self).__init__(parent)
-        self.setWindowTitle("database login")
+        self.setWindowTitle("数据库登陆")
         self.setWindowModality(QtCore.Qt.ApplicationModal)
-        self.test_ls = ['Host',"database",'user_name','password']
+        self.test_ls = ['主机',"数据库",'用户名','密码']
         self.textname_ls = []
         self.Host = 'localhost'
         self.Database = ''
@@ -107,7 +107,7 @@ class select_result_window(QtWidgets.QDialog):
         if sql_data == -1:self.myreject()
         col = [str(i+1) for i in range(len(sql_data))]
         print(col)
-        data = pd.DataFrame(sql_data, columns = ["file","satelite","sensor","latitude","longtitude","shottime","id","spectrum"], index=col)
+        data = pd.DataFrame(sql_data, columns = ["文件名","卫星","传感器","纬度","经度","拍摄时间","图片id","频谱"], index=col)
 
         self.model = TableModel(data)
         self.table.setModel(self.model)
@@ -205,7 +205,7 @@ class search_window(QtWidgets.QDialog):
         for ele in ret:
             self.satelite_cb.addItem(ele[0])
         self.satelite_cb.currentIndexChanged.connect(self.satelite_cb_change)
-        formLayout.addRow("satelite",self.satelite_cb)
+        formLayout.addRow("卫星",self.satelite_cb)
         
         self.sensor_cb = QtWidgets.QComboBox()
         self.sensor_cb.addItem('ALL')
@@ -213,12 +213,12 @@ class search_window(QtWidgets.QDialog):
         for ele in ret:
             self.sensor_cb.addItem(ele[0])
         self.sensor_cb.currentIndexChanged.connect(self.sensor_cb_change)
-        formLayout.addRow("sensor",self.sensor_cb)
+        formLayout.addRow("传感器",self.sensor_cb)
         
         validator = QtGui.QDoubleValidator()
         
         layout = QtWidgets.QHBoxLayout()
-        layout.addWidget(QtWidgets.QLabel("latitude"))
+        layout.addWidget(QtWidgets.QLabel("纬度"))
         self.la1 = QtWidgets.QLineEdit()
         self.la1 .setValidator(validator);
         layout.addWidget(self.la1 )
@@ -228,7 +228,7 @@ class search_window(QtWidgets.QDialog):
         formLayout.addRow(layout)
         
         layout = QtWidgets.QHBoxLayout()
-        layout.addWidget(QtWidgets.QLabel("longtitude"))
+        layout.addWidget(QtWidgets.QLabel("经度"))
         self.lo1 = QtWidgets.QLineEdit()
         self.lo1 .setValidator(validator);
         layout.addWidget(self.lo1 )
@@ -238,7 +238,7 @@ class search_window(QtWidgets.QDialog):
         formLayout.addRow(layout)
         
         layout = QtWidgets.QHBoxLayout()
-        layout.addWidget(QtWidgets.QLabel("date time"))
+        layout.addWidget(QtWidgets.QLabel("拍摄时间"))
         self.left_date=QtWidgets.QDateEdit()
         self.left_date.setDate(QtCore.QDate(1900, 1, 1))
         layout.addWidget(self.left_date)
@@ -248,7 +248,7 @@ class search_window(QtWidgets.QDialog):
         formLayout.addRow(layout)
         
         self.id = QtWidgets.QLineEdit()
-        formLayout.addRow("id",self.id)
+        formLayout.addRow("图片id",self.id)
         
         self.spectrum_cb = QtWidgets.QComboBox()
         ret = singleton_data_base.select_distinct_lines("spectrum")
@@ -257,7 +257,7 @@ class search_window(QtWidgets.QDialog):
         for ele in ret:
             self.spectrum_cb.addItem(ele[0])
         self.spectrum_cb.currentIndexChanged.connect(self.spectrum_cb_change)
-        formLayout.addRow("spectrum",self.spectrum_cb)
+        formLayout.addRow("频谱",self.spectrum_cb)
         
         self.setLayout(formLayout)
         

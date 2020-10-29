@@ -16,6 +16,9 @@ import prediction.prediction_tang
 import dbUI
 import mydb
 from labelDialog import *
+
+import shapefile
+
 def opencv_major_version():
     return int(cv2.__version__.split(".")[0])
 def get_files(path, type_='file', format_='*'):
@@ -33,7 +36,7 @@ class SpinBoxWindow(QtWidgets.QMainWindow):
         self.resize(200,200)
         layout =QtWidgets.QVBoxLayout()
 
-        self.l1 = QtWidgets.QLabel("appoximate value:")
+        self.l1 = QtWidgets.QLabel("拟合系数范围[1,10]")
         self.l1.setAlignment(QtCore.Qt.AlignCenter)
 
         layout.addWidget(self.l1)
@@ -46,7 +49,7 @@ class SpinBoxWindow(QtWidgets.QMainWindow):
         wid=QtWidgets.QWidget()
         wid.setLayout(layout)
         self.setCentralWidget(wid)
-        self.setWindowTitle("Approx poly dp")
+        self.setWindowTitle("近似系数")
         self.x0=5.0
         self.x1=10.0
         self.y0=0.01
@@ -676,7 +679,6 @@ class AnnotationView(QtWidgets.QGraphicsView):
     
 
 class AnnotationWindow(QtWidgets.QMainWindow):
-
     def __init__(self, parent=None):
         super(AnnotationWindow, self).__init__(parent)
         login = dbUI.Login()
@@ -684,6 +686,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
             self.use_db = True;
         else:self.use_db = False;
                 
+
         self.classes_name_color_pair=[["default",(255,0,0,100)]]     #类别颜色对 [  [class1, (r1,g1,b1,alpha1)],[class2,(r2,g2,b2,alpha2) ...]   ]
         self.cur_class=0    #表明当前所在类别
         self.image_list_all_dir=[]  #表明当前正在访问的图片的路径的全称 例如: [D:/Work/Pet.png,D:/Work/Lake.png ...]
@@ -769,12 +772,13 @@ class AnnotationWindow(QtWidgets.QMainWindow):
             for line in file:
                 line=line.decode("utf-8") 
                 if  not count:self.classes_name_color_pair=[]
+                line=line.strip()
+                print("class "+line+" append")
                 self.classes_name_color_pair.append([line])
                 count+=1
         count=0
         with open("color.txt","r") as file:
             for line in file:
-
                 t=line.split(",")
                 color=[]
                 for i in t:
@@ -792,41 +796,40 @@ class AnnotationWindow(QtWidgets.QMainWindow):
 
         OpenFileAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/open.png'), 'Ctrl+O', self)
         
-        OpenFileAct.setIconText("Open a file")
+        OpenFileAct.setIconText("打开文件")
         OpenFileAct.setShortcut('Ctrl+O')
         OpenFileAct.setStatusTip('Ctrl+O')
         OpenFileAct.triggered.connect(self.load_image)
 
         OpendirAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/open.png'), 'Ctrl+D', self)   
-        OpendirAct.setIconText("Open directory")
+        OpendirAct.setIconText("打开目录")
         OpendirAct.setShortcut('Ctrl+D')
         OpendirAct.setStatusTip('Open directory')
         OpendirAct.triggered.connect(self.load_file_image)
 
         SaveAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/save.png'), 'Ctrl+S', self)   
-        SaveAct.setIconText("Save")
+        SaveAct.setIconText("保存")
         SaveAct.setStatusTip('Save')
         SaveAct.triggered.connect(self.save_image)
 
         PolyAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/objects.png'), 'Ctrl+N', self)   
-        PolyAct.setIconText("New polygon")
+        PolyAct.setIconText("新建多边形")
         PolyAct.setShortcut('Ctrl+N')
         PolyAct.setStatusTip('New polygon')
         PolyAct.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Polygon_Instruction))
 
         PolyDeleteAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/cancel.png'), 'Ctrl+R', self)   
-        PolyDeleteAct.setIconText("Delete a polygon")
+        PolyDeleteAct.setIconText("删除多边形")
         PolyDeleteAct.setShortcut('Ctrl+R')
         PolyDeleteAct.setStatusTip('Delete a polygon')
         PolyDeleteAct.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Delete_Instruction))
 
 
         PolyHandAct = QtWidgets.QAction(QtGui.QIcon('./resources/icons/handicon.png'), 'Ctrl+H', self)   
-        PolyHandAct.setIconText("Hand mode")
+        PolyHandAct.setIconText("浏览模式")
         PolyHandAct.setShortcut('Ctrl+H')
         PolyHandAct.setStatusTip('Hand mode')
         PolyHandAct.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Hand_instruction))
-
 
 
         toolbar_speed_dial = QtWidgets.QToolBar('Left menu')
@@ -843,43 +846,43 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         toolbar_speed_dial.addAction(PolyDeleteAct)
         toolbar_speed_dial.addAction(PolyHandAct)
 
-        menu_file = self.menuBar().addMenu("File")
-        load_image_action = menu_file.addAction("&Load Image")
-        load_file_image_action = menu_file.addAction("&Load File Image")
+        menu_file = self.menuBar().addMenu("文件")
+        load_image_action = menu_file.addAction("打开文件")
+        load_file_image_action = menu_file.addAction("打开目录")
         load_file_image_action.triggered.connect(self.load_file_image)
 
-        save_action=menu_file.addAction("&Save Image")
+        save_action=menu_file.addAction("保存")
         save_action.triggered.connect(self.save_image)
         QtWidgets.QShortcut(QtGui.QKeySequence.Save, self, activated=self.save_image)
         load_image_action.triggered.connect(self.load_image)
 
-        menu_instructions = self.menuBar().addMenu("Intructions")
-        polygon_action = menu_instructions.addAction("Polygon")
+        menu_instructions = self.menuBar().addMenu("指令")
+        polygon_action = menu_instructions.addAction("新建多边形")
         polygon_action.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Polygon_Instruction))
-        delete_action = menu_instructions.addAction("Delete Polygon")
+        delete_action = menu_instructions.addAction("删除多边形")
         delete_action.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Delete_Instruction))
 
-        contour_action = menu_instructions.addAction("Magic Pen")
+        contour_action = menu_instructions.addAction("魔术笔")
         contour_action.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Contour_Instruction))
-        dpl= menu_instructions.addAction("Deep learning from label image")
+        dpl= menu_instructions.addAction("从标签图加载标注")
         dpl.triggered.connect(self.m_scene.deep_learning_show)
 
-        deep_learning_action=menu_instructions.addAction("Deep learning from pth")
+        deep_learning_action=menu_instructions.addAction("从pth文件加载标注")
         deep_learning_action.triggered.connect(self.m_scene.deep_learning_pth)
 
-        restoring_action=menu_instructions.addAction("Hand Mode")
+        restoring_action=menu_instructions.addAction("浏览模式")
         restoring_action.triggered.connect(partial(self.m_scene.setCurrentInstruction, Instructions.Hand_instruction))
 
 
 
 
-        overload_test=self.menuBar().addMenu("Setting")
-        save_img_memo_ts=overload_test.addAction("polyApproximate")
-        bandSwap=overload_test.addAction("BandSwap")
+        overload_test=self.menuBar().addMenu("设置")
+        save_img_memo_ts=overload_test.addAction("拟合近似系数")
+        bandSwap=overload_test.addAction("交换波段")
         bandSwap.triggered.connect(self.bandSwap)
         save_img_memo_ts.triggered.connect(self.polyApproximate)
 
-        ccls=self.menuBar().addMenu("Current Class")
+        ccls=self.menuBar().addMenu("当前标注类别")
         
         for idx,i in enumerate(self.classes_name_color_pair):
 
@@ -888,12 +891,12 @@ class AnnotationWindow(QtWidgets.QMainWindow):
             self.ccls_action[-1].triggered.connect(partial(self.handle_cur_class,idx))
             
 
-        db_instructions = self.menuBar().addMenu("Database")
-        sc = db_instructions.addAction("Scan")
+        db_instructions = self.menuBar().addMenu("数据库")
+        sc = db_instructions.addAction("扫描添加")
         sc.triggered.connect(self.db_scan)
-        sch = db_instructions.addAction("Search")
+        sch = db_instructions.addAction("搜索数据库")
         sch.triggered.connect(self.db_search)
-        drt = db_instructions.addAction("Drop table")
+        drt = db_instructions.addAction("删除数据库数据")
         drt.triggered.connect(self.db_drop_table)
         if not self.use_db:
             sc.setEnabled(False)
@@ -1077,6 +1080,12 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         if not os.path.isdir(self.folder+"/mask/"):os.mkdir(self.folder+"/mask/")
         img_name=self.folder+'/'+'mask'+'/'+tmpstr
 
+        if not os.path.isdir(self.folder + "/shp/"):os.mkdir(self.folder+"/shp/")   #save shp file
+        shp_file = "."
+        shp_file = shp_file.join(ls)
+        shp_file = self.folder + "/shp/" + shp_file
+
+
         Qimg.save(img_name)
         npqimg=Qimg.convertToFormat(QtGui.QImage.Format_RGB32)
         nparray=self.QImageToCvMat(npqimg)
@@ -1145,6 +1154,25 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                 file.write("class ")
                 file.write(str(poly.my_color))
                 file.write("\n")
+        
+        #now we need to save the shape file
+        w = shapefile.Writer(shp_file)
+        w.field('poly','C')
+
+        #xoffset, px_w, rot1, yoffset, px_h, rot2 = self.src_ds.GetGeoTransform()
+        for polyid,poly in enumerate(Allpoly.all_poly):
+            insert_poly = []
+            for group,ele in enumerate(poly.m_points):
+                group_poly = []
+                for point in ele:
+                    x=point.x()
+                    y=point.y()
+                    
+                    group_poly.append([y,x])
+                insert_poly.append(group_poly)
+            w.poly(insert_poly)
+            w.record('poly '+str(polyid))
+        w.close()
 
         self.progress_bar.setValue(100)
         QtTest.QTest.qWait(500)
@@ -1241,11 +1269,13 @@ class AnnotationWindow(QtWidgets.QMainWindow):
         mask_name= mask_name+"_mask.txt"
         #print("load from txt ",folder_name,mask_name)
         if  not os.path.isfile(folder_name+"/mask/"+mask_name):return
+
         with open(folder_name+"/mask/"+mask_name,"r") as file:
             lines=file.readlines()
             for line in lines:
                 line=line[:-1:]
                 ls=line.split(" ")
+                #print("my list ",ls)
                 if ls[0]=="point":
                     ls=ls[1:]
                     str=" "
@@ -1263,11 +1293,12 @@ class AnnotationWindow(QtWidgets.QMainWindow):
                             y=float(x_y_list[1])
                             tmp.append((x,y))
                         exterior.append(tmp)
-
+                    
                     self.m_scene.setCurrentInstruction(Instructions.Polygon_Instruction)
 
                     self.m_scene.polygon_item.MySetFatherSonPolygon(exterior)
                 else:
+                    
                     self.m_scene.polygon_item.my_color=int(ls[1])
                     self.m_scene.setCurrentInstruction(Instructions.Polygon_Finish)
     def stretch_n(self,bands, lower_percent=2, higher_percent=98):
@@ -1300,6 +1331,7 @@ class AnnotationWindow(QtWidgets.QMainWindow):
     def Multiband2Array(self,path):
         print("using gdal")
         src_ds = gdal.Open(path)
+        self.src_ds = src_ds
         print("gdal suc")
         if src_ds is None:
             print('Unable to open %s'% path)
