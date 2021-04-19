@@ -167,6 +167,20 @@ class  drop_table_window(QtWidgets.QDialog):
         singleton_data_base.drop_table()
         self.accept()
 
+class  rows_added_window(QtWidgets.QDialog):
+    def __init__(self,add_rows,parent = None):
+        
+        super(rows_added_window, self).__init__(parent)
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(QtWidgets.QLabel(str(add_rows) + " row(s) added."))
+        QBtn = QDialogButtonBox.Ok
+        self.buttonBox = QDialogButtonBox(QBtn)
+        self.buttonBox.accepted.connect(self.myaccept)
+        #self.buttonBox.rejected.connect(self.reject)
+        layout.addWidget(self.buttonBox)
+        self.setLayout(layout)
+    def myaccept(self):
+        self.accept()
 
 class search_window(QtWidgets.QDialog):
     def spectrum_cb_change(self):
@@ -291,7 +305,10 @@ class search_window(QtWidgets.QDialog):
     def myreject(self):
         self.reject();
 def  scan_and_insert_to_table(location):
-    singleton_data_base.scan_and_insert_to_table(location);       
+    add_rows = singleton_data_base.scan_and_insert_to_table(location)
+    window = rows_added_window(add_rows = add_rows)
+    window.exec_()
+
 
 if __name__ == '__main__':
 

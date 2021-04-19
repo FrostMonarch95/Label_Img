@@ -136,6 +136,8 @@ class my_data_base:
     #注意存放的格式：
     #东经为正，西经为负
     #北纬为正，南纬为负
+
+    #返回用户总共添加了多少行的数据
     def scan_and_insert_to_table(self,location):
         global db_error
         if location == '':location =None
@@ -218,11 +220,16 @@ class my_data_base:
         try:
             self.cursor.executemany(mySql_insert_query, final)
             self.connection.commit()
+            
             print("insert data OK")
+            return len(final)
         except Error as e:
             db_error = e
             print("insert data failed ")
+            
             print(e)
+            return 0
+        
         
             
             
