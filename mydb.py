@@ -29,7 +29,7 @@ class my_data_base:
         command = "select count(*) from remote_sensing_core_table"
         try:
             self.cursor.execute(command)
-            records=self.cursor.fetchall();
+            records=self.cursor.fetchall()
             return records
         except Error as e:
             print(e)
@@ -76,7 +76,7 @@ class my_data_base:
         if keys[4] in kwargs:
             if kwargs[keys[4]][0] > kwargs[keys[4]][1]:
                 self.warning("input datetime left small right big")
-                return -1;
+                return -1
             if with_and:command+=" and"
             first = kwargs[keys[4]][0]
             second = kwargs[keys[4]][1]
@@ -125,7 +125,7 @@ class my_data_base:
             self.cursor.execute(sql_delete, sql_data)
             self.connection.commit()
         except Error as e:
-            db_error = e;
+            db_error = e
             print("delete row failed ",e)
        
         
@@ -150,19 +150,19 @@ class my_data_base:
                 id varchar(20),
                 spectrum varchar(10)
                 );"""
-        self.cursor.execute(command);
+        self.cursor.execute(command)
         support_extension = ["jpg","png","tif","tiff"]
         files=[]
         for file in os.listdir(location):
             suc=0
             for ext in support_extension:
                 if file.split(".")[-1] == ext:
-                    suc = 1;
-                    break;
+                    suc = 1
+                    break
             if suc:files.append(file)
         final = []
         for file in files:
-            ls = file.split("_");
+            ls = file.split("_")
             ret = [ os.path.join(location,file)  if location is not None else file]
             if len(ls)<5:
                 self.warning("format not correct for file {} support only 4 _".format(os.path.join(location,file)))
@@ -170,29 +170,29 @@ class my_data_base:
             if ls[0][0:2]!="GF":
                 self.warning("format not correct for file {} only support GF".format(os.path.join(location,file)))
                 continue
-            ret.append(ls[0]);
-            ret.append(ls[1]);
+            ret.append(ls[0])
+            ret.append(ls[1])
             if not ( ls[2][0] == 'W' or ls[2][0] == 'E'):
                 self.warning("format not correct for file {} file should in Exxx.xx or Wxxx.xx".format(os.path.join(location,file)) )
-                continue;
+                continue
             try: 
                 longitude = float(ls[2][1:])
             except Exception as e:
                 self.warning("format not correct for file {} xxx.xx not a float number in Exxx.xx".format(os.path.join(location,file)))
-                continue;
-            if longitude <0 or longitude >180:continue;
+                continue
+            if longitude <0 or longitude >180:continue
             if ls[2][0] == 'W':longitude=0-longitude
-            ret.append(longitude);
+            ret.append(longitude)
             
             if not ( ls[3][0] == 'N' or ls[3][0] == 'S'):
                 self.warning("format not correct for file {} file should in Nxxx.xx or Sxxx.xx".format(os.path.join(location,file)) )
-                continue;
+                continue
             try: 
                 latitude = float(ls[3][1:])
             except Exception as e:
                 self.warning("format not correct for file {} xxx.xx not a float number in Nxxx.xx".format(os.path.join(location,file)))
-                continue;
-            if latitude <0 or latitude >90:continue;
+                continue
+            if latitude <0 or latitude >90:continue
             if ls[3][0] == 'S':latitude=0-latitude
             ret.append(latitude)
             try:
@@ -205,10 +205,10 @@ class my_data_base:
             tmp = ls[5].split("-")    
             if len(tmp)<2:
                 self.warning("- format not correct")
-                continue;
+                continue
             ret.append(tmp[0])
-            ret.append(tmp[1].split(".")[0]);
-            ret=tuple(ret);
+            ret.append(tmp[1].split(".")[0])
+            ret=tuple(ret)
             final.append(ret)
         print("total files ",len(final))
     # for idx,ele in enumerate(final):
@@ -283,21 +283,21 @@ class my_data_base:
             self.cursor.close()
         except Error as e:
             db_error = e
-            print("Error cursor close ",e);
+            print("Error cursor close ",e)
         try:
             self.connection.close()
         except Error as e:
             db_error = e 
             print("Error while closing connection",e)
     def __init__(self):        
-        self.cursor = None;
-        self.connection = None;
+        self.cursor = None
+        self.connection = None
         
-singleton_data_base =  my_data_base();
+singleton_data_base =  my_data_base()
 db_error = ''
 if __name__ == '__main__':
-    singleton_data_base.login(False,False,False,False);
-    singleton_data_base.scan_and_insert_to_table('');
+    singleton_data_base.login(False,False,False,False)
+    singleton_data_base.scan_and_insert_to_table('')
     print(singleton_data_base.select_distinct_lines('shottime'))
-    singleton_data_base.close_db();
+    singleton_data_base.close_db()
     
